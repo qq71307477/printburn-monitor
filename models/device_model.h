@@ -8,7 +8,7 @@
 
 class Device {
 public:
-    Device() : id(0), assigned_user_id(0), is_monitored(false) {}
+    Device() : id(0), assigned_user_id(0), is_monitored(false), assignment_date(0), last_seen(0), created_at(0), updated_at(0) {}
 
     // Getters
     int getId() const { return id; }
@@ -24,7 +24,7 @@ public:
     QDateTime getLastSeen() const { return QDateTime::fromTime_t(last_seen); }
     QDateTime getCreateTime() const { return QDateTime::fromTime_t(created_at); }
     QDateTime getLastUpdated() const { return QDateTime::fromTime_t(updated_at); }
-    QDateTime getAssignmentDate() const { return QDateTime(); }
+    QDateTime getAssignmentDate() const { return QDateTime::fromTime_t(assignment_date); }
 
     // Setters
     void setId(int value) { id = value; }
@@ -40,7 +40,7 @@ public:
     void setLastSeen(const QDateTime& value) { last_seen = value.toTime_t(); }
     void setCreateTime(const QDateTime& value) { created_at = value.toTime_t(); }
     void setLastUpdated(const QDateTime& value) { updated_at = value.toTime_t(); }
-    void setAssignmentDate(const QDateTime& value) { Q_UNUSED(value) }
+    void setAssignmentDate(const QDateTime& value) { assignment_date = value.toTime_t(); }
 
     // Legacy struct members for backward compatibility
     int id;
@@ -53,6 +53,7 @@ public:
     std::string status;  // "available", "in_use", "maintenance", "offline"
     std::string specifications;  // Technical specs
     bool is_monitored;  // Whether the device is under security monitoring
+    std::time_t assignment_date;
     std::time_t last_seen;
     std::time_t created_at;
     std::time_t updated_at;
