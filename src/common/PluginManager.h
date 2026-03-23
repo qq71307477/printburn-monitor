@@ -1,0 +1,45 @@
+#ifndef PLUGINMANAGER_H
+#define PLUGINMANAGER_H
+
+#include <QObject>
+#include <QHash>
+#include <QVector>
+#include <QLibrary>
+#include "IPlugin.h"
+
+class PluginManager : public QObject {
+    Q_OBJECT
+
+public:
+    explicit PluginManager(QObject *parent = nullptr);
+    ~PluginManager();
+
+    // 加载插件
+    bool loadPlugin(const QString &pluginPath);
+
+    // 卸载插件
+    bool unloadPlugin(const QString &pluginName);
+
+    // 执行插件功能
+    QVariant executePlugin(const QString &pluginName, const QString &function, const QVariantMap &params);
+
+    // 获取已加载的插件列表
+    QStringList getLoadedPlugins() const;
+
+    // 初始化所有插件
+    bool initializeAllPlugins();
+
+    // 清理所有插件
+    void cleanupAllPlugins();
+
+private:
+    struct PluginData {
+        IPlugin *instance;
+        QLibrary *library;
+        QString path;
+    };
+
+    QHash<QString, PluginData> m_plugins;
+};
+
+#endif // PLUGINMANAGER_H

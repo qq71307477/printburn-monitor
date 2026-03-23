@@ -1,0 +1,11 @@
+Package: printburn-monitor
+Version: 1.0.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: qt6-qmake, qt6-base-dev-tools, libqt6core6t64, libqt6gui6t64, libqt6widgets6t64, libqt6sql6t64, libqt6network6t64
+Maintainer: Security Solutions Inc. <support@example.com>
+Description: 打印刻录安全监控系统 - 单机版
+ 打印刻录安全监控系统是一款专为企业环境设计的安全监控软件，
+ 用于管理和监控打印和刻录操作，确保数据安全和合规性。
+ 支持任务申请、审批、设备管理等功能。

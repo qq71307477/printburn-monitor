@@ -1,0 +1,37 @@
+#ifndef AUTHSERVICE_H
+#define AUTHSERVICE_H
+
+#include <QString>
+#include <QVariantMap>
+#include "../models/user_model.h"  // 使用正确的用户模型路径
+
+class AuthService
+{
+public:
+    // 单例获取方法
+    static AuthService& getInstance();
+
+    // 登录验证
+    bool authenticate(const QString &username, const QString &password);
+
+    // 登出
+    bool logout();
+
+    // 密码修改
+    bool changePassword(const QString &username, const QString &oldPassword, const QString &newPassword);
+
+    // 获取当前登录用户信息
+    User getCurrentUser() const;
+
+    // 检查用户权限
+    bool hasPermission(const QString &permission) const;
+
+private:
+    AuthService();  // 私有构造函数，确保单例
+    ~AuthService();
+
+    User m_currentUser;
+    bool m_isLoggedIn;
+};
+
+#endif // AUTHSERVICE_H

@@ -1,0 +1,46 @@
+# 构建产物
+build/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.dll
+*.lib
+*.obj
+
+# IDE文件
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 临时文件
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+
+# 用户配置
+*.user
+*.userprefs
+
+# Qt相关
+*.qm
+*.qrc
+moc_*
+qrc_*
+ui_*
+
+# 文档文件（除了项目相关文档）
+*.docx
+*.pdf
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
