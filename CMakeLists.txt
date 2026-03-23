@@ -57,6 +57,12 @@ list(APPEND SOURCES ${MODEL_SOURCES})
 file(GLOB_RECURSE SERVICE_SOURCES "src/services/*.cpp" "src/services/*.h")
 list(APPEND SOURCES ${SERVICE_SOURCES})
 
+# 添加 SecurityPlugin 源文件（被 TaskService 直接使用）
+list(APPEND SOURCES
+    src/plugins/security/SecurityPlugin.h
+    src/plugins/security/SecurityPlugin.cpp
+)
+
 # 创建主应用程序
 add_executable(${PROJECT_NAME} ${SOURCES})
 
@@ -69,5 +75,5 @@ add_subdirectory(src/plugins)
 # 启用测试
 enable_testing()
 
-# 添加测试子目录 (暂时禁用，需要重构)
-# add_subdirectory(tests)
+# 添加测试子目录
+add_subdirectory(tests)
