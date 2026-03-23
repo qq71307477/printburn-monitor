@@ -74,7 +74,7 @@ void MainWindow::setupMenuBar()
     });
 
     QAction *aboutAction = helpMenu->addAction("关于");
-    connect(aboutAction, &QAction::triggered, this, []() {
+    connect(aboutAction, &QAction::triggered, this, [this]() {
         QMessageBox::about(this, "关于", "打印刻录安全监控系统\n版本 1.0.0");
     });
 }
