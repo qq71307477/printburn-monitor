@@ -1,8 +1,10 @@
 #ifndef USER_REPOSITORY_H
 #define USER_REPOSITORY_H
 
-#include "../models/user_model.h"
+#include "models/user_model.h"
 #include "database_manager.h"
+#include <QSqlQuery>
+#include <QSqlError>
 #include <vector>
 #include <memory>
 #include <optional>

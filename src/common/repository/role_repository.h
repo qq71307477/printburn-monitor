@@ -1,8 +1,10 @@
 #ifndef ROLE_REPOSITORY_H
 #define ROLE_REPOSITORY_H
 
-#include "../models/role_model.h"
+#include "models/role_model.h"
 #include "database_manager.h"
+#include <QSqlQuery>
+#include <QSqlError>
 #include <vector>
 #include <memory>
 

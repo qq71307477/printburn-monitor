@@ -1,8 +1,10 @@
 #ifndef DEPARTMENT_REPOSITORY_H
 #define DEPARTMENT_REPOSITORY_H
 
-#include "../models/department_model.h"
+#include "models/department_model.h"
 #include "database_manager.h"
+#include <QSqlQuery>
+#include <QSqlError>
 #include <vector>
 #include <memory>
 
@@ -16,7 +18,6 @@ public:
     bool create_table();
     std::unique_ptr<Department> find_by_id(int id);
     std::vector<std::unique_ptr<Department>> find_all();
-    std::unique_ptr<Department> find_by_name(const std::string& name);
     bool create(Department& department);
     bool update(const Department& department);
     bool remove(int id);

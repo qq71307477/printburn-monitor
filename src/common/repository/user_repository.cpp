@@ -1,12 +1,9 @@
 #include "user_repository.h"
-#include <sstream>
-#include <iomanip>
-#include <ctime>
 
 UserRepository::UserRepository(DatabaseManager* db_manager) : db_manager_(db_manager) {}
 
 bool UserRepository::create_table() {
-    const char* sql = R"(
+    QString sql = R"(
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE,
@@ -29,299 +26,198 @@ bool UserRepository::create_table() {
         CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
         CREATE INDEX IF NOT EXISTS idx_users_department_id ON users(department_id);
     )";
-
     return db_manager_->execute_query(sql);
 }
 
 std::unique_ptr<User> UserRepository::find_by_id(int id) {
-    const char* sql = "SELECT id, username, password_hash, email, role_id, department_id, "
-                      "first_name, last_name, phone, is_active, created_at, updated_at FROM users WHERE id = ?";
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
+                  "first_name, last_name, phone, is_active FROM users WHERE id = ?");
+    query.addBindValue(id);
 
-    sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(db_manager_->get_connection(), sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        return nullptr;
+    if (query.exec() && query.next()) {
+        auto user = std::make_unique<User>();
+        user->id = query.value(0).toInt();
+        user->username = query.value(1).toString().toStdString();
+        user->password_hash = query.value(2).toString().toStdString();
+        user->email = query.value(3).toString().toStdString();
+        user->role_id = query.value(4).toInt();
+        user->department_id = query.value(5).toInt();
+        user->first_name = query.value(6).toString().toStdString();
+        user->last_name = query.value(7).toString().toStdString();
+        user->phone = query.value(8).toString().toStdString();
+        user->is_active = query.value(9).toBool();
+        return user;
     }
-
-    sqlite3_bind_int(stmt, 1, id);
-
-    std::unique_ptr<User> user = nullptr;
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        user = std::make_unique<User>();
-        user->id = sqlite3_column_int(stmt, 0);
-        user->username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        user->password_hash = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-        user->email = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-        user->role_id = sqlite3_column_int(stmt, 4);
-        user->department_id = sqlite3_column_int(stmt, 5);
-        user->first_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
-        user->last_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
-        user->phone = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8));
-        user->is_active = sqlite3_column_int(stmt, 9) != 0;
-
-        // Handle datetime columns
-        const char* created_at_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 10));
-        const char* updated_at_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 11));
-    }
-
-    sqlite3_finalize(stmt);
-    return user;
+    return nullptr;
 }
 
 std::vector<std::unique_ptr<User>> UserRepository::find_all() {
-    const char* sql = "SELECT id, username, password_hash, email, role_id, department_id, "
-                      "first_name, last_name, phone, is_active, created_at, updated_at FROM users";
-
-    sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(db_manager_->get_connection(), sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        return {};
-    }
-
     std::vector<std::unique_ptr<User>> users;
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        auto user = std::make_unique<User>();
-        user->id = sqlite3_column_int(stmt, 0);
-        user->username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        user->password_hash = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-        user->email = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-        user->role_id = sqlite3_column_int(stmt, 4);
-        user->department_id = sqlite3_column_int(stmt, 5);
-        user->first_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
-        user->last_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
-        user->phone = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8));
-        user->is_active = sqlite3_column_int(stmt, 9) != 0;
+    QSqlQuery query(db_manager_->get_connection());
 
-        // Handle datetime columns
-        const char* created_at_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 10));
-        const char* updated_at_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 11));
-
-        users.push_back(std::move(user));
+    if (query.exec("SELECT id, username, password_hash, email, role_id, department_id, "
+                   "first_name, last_name, phone, is_active FROM users")) {
+        while (query.next()) {
+            auto user = std::make_unique<User>();
+            user->id = query.value(0).toInt();
+            user->username = query.value(1).toString().toStdString();
+            user->password_hash = query.value(2).toString().toStdString();
+            user->email = query.value(3).toString().toStdString();
+            user->role_id = query.value(4).toInt();
+            user->department_id = query.value(5).toInt();
+            user->first_name = query.value(6).toString().toStdString();
+            user->last_name = query.value(7).toString().toStdString();
+            user->phone = query.value(8).toString().toStdString();
+            user->is_active = query.value(9).toBool();
+            users.push_back(std::move(user));
+        }
     }
-
-    sqlite3_finalize(stmt);
     return users;
 }
 
 std::unique_ptr<User> UserRepository::find_by_username(const std::string& username) {
-    const char* sql = "SELECT id, username, password_hash, email, role_id, department_id, "
-                      "first_name, last_name, phone, is_active, created_at, updated_at FROM users WHERE username = ?";
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
+                  "first_name, last_name, phone, is_active FROM users WHERE username = ?");
+    query.addBindValue(QString::fromStdString(username));
 
-    sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(db_manager_->get_connection(), sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        return nullptr;
+    if (query.exec() && query.next()) {
+        auto user = std::make_unique<User>();
+        user->id = query.value(0).toInt();
+        user->username = query.value(1).toString().toStdString();
+        user->password_hash = query.value(2).toString().toStdString();
+        user->email = query.value(3).toString().toStdString();
+        user->role_id = query.value(4).toInt();
+        user->department_id = query.value(5).toInt();
+        user->first_name = query.value(6).toString().toStdString();
+        user->last_name = query.value(7).toString().toStdString();
+        user->phone = query.value(8).toString().toStdString();
+        user->is_active = query.value(9).toBool();
+        return user;
     }
-
-    sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_STATIC);
-
-    std::unique_ptr<User> user = nullptr;
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        user = std::make_unique<User>();
-        user->id = sqlite3_column_int(stmt, 0);
-        user->username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        user->password_hash = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-        user->email = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-        user->role_id = sqlite3_column_int(stmt, 4);
-        user->department_id = sqlite3_column_int(stmt, 5);
-        user->first_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
-        user->last_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
-        user->phone = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8));
-        user->is_active = sqlite3_column_int(stmt, 9) != 0;
-
-        // Handle datetime columns
-        const char* created_at_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 10));
-        const char* updated_at_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 11));
-    }
-
-    sqlite3_finalize(stmt);
-    return user;
+    return nullptr;
 }
 
 std::unique_ptr<User> UserRepository::find_by_email(const std::string& email) {
-    const char* sql = "SELECT id, username, password_hash, email, role_id, department_id, "
-                      "first_name, last_name, phone, is_active, created_at, updated_at FROM users WHERE email = ?";
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
+                  "first_name, last_name, phone, is_active FROM users WHERE email = ?");
+    query.addBindValue(QString::fromStdString(email));
 
-    sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(db_manager_->get_connection(), sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        return nullptr;
+    if (query.exec() && query.next()) {
+        auto user = std::make_unique<User>();
+        user->id = query.value(0).toInt();
+        user->username = query.value(1).toString().toStdString();
+        user->password_hash = query.value(2).toString().toStdString();
+        user->email = query.value(3).toString().toStdString();
+        user->role_id = query.value(4).toInt();
+        user->department_id = query.value(5).toInt();
+        user->first_name = query.value(6).toString().toStdString();
+        user->last_name = query.value(7).toString().toStdString();
+        user->phone = query.value(8).toString().toStdString();
+        user->is_active = query.value(9).toBool();
+        return user;
     }
-
-    sqlite3_bind_text(stmt, 1, email.c_str(), -1, SQLITE_STATIC);
-
-    std::unique_ptr<User> user = nullptr;
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        user = std::make_unique<User>();
-        user->id = sqlite3_column_int(stmt, 0);
-        user->username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        user->password_hash = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-        user->email = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-        user->role_id = sqlite3_column_int(stmt, 4);
-        user->department_id = sqlite3_column_int(stmt, 5);
-        user->first_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
-        user->last_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
-        user->phone = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8));
-        user->is_active = sqlite3_column_int(stmt, 9) != 0;
-
-        // Handle datetime columns
-        const char* created_at_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 10));
-        const char* updated_at_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 11));
-    }
-
-    sqlite3_finalize(stmt);
-    return user;
+    return nullptr;
 }
 
 bool UserRepository::create(User& user) {
-    const char* sql = "INSERT INTO users (username, password_hash, email, role_id, department_id, "
-                      "first_name, last_name, phone, is_active) "
-                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("INSERT INTO users (username, password_hash, email, role_id, department_id, "
+                  "first_name, last_name, phone, is_active) "
+                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    query.addBindValue(QString::fromStdString(user.username));
+    query.addBindValue(QString::fromStdString(user.password_hash));
+    query.addBindValue(QString::fromStdString(user.email));
+    query.addBindValue(user.role_id);
+    query.addBindValue(user.department_id);
+    query.addBindValue(QString::fromStdString(user.first_name));
+    query.addBindValue(QString::fromStdString(user.last_name));
+    query.addBindValue(QString::fromStdString(user.phone));
+    query.addBindValue(user.is_active);
 
-    sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(db_manager_->get_connection(), sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        return false;
-    }
-
-    sqlite3_bind_text(stmt, 1, user.username.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, user.password_hash.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 3, user.email.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 4, user.role_id);
-    sqlite3_bind_int(stmt, 5, user.department_id);
-    sqlite3_bind_text(stmt, 6, user.first_name.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 7, user.last_name.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 8, user.phone.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 9, user.is_active ? 1 : 0);
-
-    rc = sqlite3_step(stmt);
-    if (rc == SQLITE_DONE) {
-        user.id = sqlite3_last_insert_rowid(db_manager_->get_connection());
-        sqlite3_finalize(stmt);
+    if (query.exec()) {
+        user.id = query.lastInsertId().toInt();
         return true;
     }
-
-    sqlite3_finalize(stmt);
     return false;
 }
 
 bool UserRepository::update(const User& user) {
-    const char* sql = "UPDATE users SET username = ?, password_hash = ?, email = ?, role_id = ?, "
-                      "department_id = ?, first_name = ?, last_name = ?, phone = ?, is_active = ?, "
-                      "updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("UPDATE users SET username = ?, password_hash = ?, email = ?, role_id = ?, "
+                  "department_id = ?, first_name = ?, last_name = ?, phone = ?, is_active = ?, "
+                  "updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+    query.addBindValue(QString::fromStdString(user.username));
+    query.addBindValue(QString::fromStdString(user.password_hash));
+    query.addBindValue(QString::fromStdString(user.email));
+    query.addBindValue(user.role_id);
+    query.addBindValue(user.department_id);
+    query.addBindValue(QString::fromStdString(user.first_name));
+    query.addBindValue(QString::fromStdString(user.last_name));
+    query.addBindValue(QString::fromStdString(user.phone));
+    query.addBindValue(user.is_active);
+    query.addBindValue(user.id);
 
-    sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(db_manager_->get_connection(), sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        return false;
-    }
-
-    sqlite3_bind_text(stmt, 1, user.username.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, user.password_hash.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 3, user.email.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 4, user.role_id);
-    sqlite3_bind_int(stmt, 5, user.department_id);
-    sqlite3_bind_text(stmt, 6, user.first_name.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 7, user.last_name.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 8, user.phone.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 9, user.is_active ? 1 : 0);
-    sqlite3_bind_int(stmt, 10, user.id);
-
-    rc = sqlite3_step(stmt);
-    bool result = (rc == SQLITE_DONE);
-
-    sqlite3_finalize(stmt);
-    return result;
+    return query.exec();
 }
 
 bool UserRepository::remove(int id) {
-    const char* sql = "DELETE FROM users WHERE id = ?";
-
-    sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(db_manager_->get_connection(), sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        return false;
-    }
-
-    sqlite3_bind_int(stmt, 1, id);
-
-    rc = sqlite3_step(stmt);
-    bool result = (rc == SQLITE_DONE && sqlite3_changes(db_manager_->get_connection()) > 0);
-
-    sqlite3_finalize(stmt);
-    return result;
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("DELETE FROM users WHERE id = ?");
+    query.addBindValue(id);
+    return query.exec();
 }
 
 std::vector<std::unique_ptr<User>> UserRepository::find_by_department(int department_id) {
-    const char* sql = "SELECT id, username, password_hash, email, role_id, department_id, "
-                      "first_name, last_name, phone, is_active, created_at, updated_at FROM users WHERE department_id = ?";
-
-    sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(db_manager_->get_connection(), sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        return {};
-    }
-
-    sqlite3_bind_int(stmt, 1, department_id);
-
     std::vector<std::unique_ptr<User>> users;
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        auto user = std::make_unique<User>();
-        user->id = sqlite3_column_int(stmt, 0);
-        user->username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        user->password_hash = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-        user->email = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-        user->role_id = sqlite3_column_int(stmt, 4);
-        user->department_id = sqlite3_column_int(stmt, 5);
-        user->first_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
-        user->last_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
-        user->phone = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8));
-        user->is_active = sqlite3_column_int(stmt, 9) != 0;
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
+                  "first_name, last_name, phone, is_active FROM users WHERE department_id = ?");
+    query.addBindValue(department_id);
 
-        // Handle datetime columns
-        const char* created_at_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 10));
-        const char* updated_at_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 11));
-
-        users.push_back(std::move(user));
+    if (query.exec()) {
+        while (query.next()) {
+            auto user = std::make_unique<User>();
+            user->id = query.value(0).toInt();
+            user->username = query.value(1).toString().toStdString();
+            user->password_hash = query.value(2).toString().toStdString();
+            user->email = query.value(3).toString().toStdString();
+            user->role_id = query.value(4).toInt();
+            user->department_id = query.value(5).toInt();
+            user->first_name = query.value(6).toString().toStdString();
+            user->last_name = query.value(7).toString().toStdString();
+            user->phone = query.value(8).toString().toStdString();
+            user->is_active = query.value(9).toBool();
+            users.push_back(std::move(user));
+        }
     }
-
-    sqlite3_finalize(stmt);
     return users;
 }
 
 std::vector<std::unique_ptr<User>> UserRepository::find_by_role(int role_id) {
-    const char* sql = "SELECT id, username, password_hash, email, role_id, department_id, "
-                      "first_name, last_name, phone, is_active, created_at, updated_at FROM users WHERE role_id = ?";
-
-    sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(db_manager_->get_connection(), sql, -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        return {};
-    }
-
-    sqlite3_bind_int(stmt, 1, role_id);
-
     std::vector<std::unique_ptr<User>> users;
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        auto user = std::make_unique<User>();
-        user->id = sqlite3_column_int(stmt, 0);
-        user->username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        user->password_hash = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-        user->email = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-        user->role_id = sqlite3_column_int(stmt, 4);
-        user->department_id = sqlite3_column_int(stmt, 5);
-        user->first_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 6));
-        user->last_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7));
-        user->phone = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8));
-        user->is_active = sqlite3_column_int(stmt, 9) != 0;
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
+                  "first_name, last_name, phone, is_active FROM users WHERE role_id = ?");
+    query.addBindValue(role_id);
 
-        // Handle datetime columns
-        const char* created_at_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 10));
-        const char* updated_at_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 11));
-
-        users.push_back(std::move(user));
+    if (query.exec()) {
+        while (query.next()) {
+            auto user = std::make_unique<User>();
+            user->id = query.value(0).toInt();
+            user->username = query.value(1).toString().toStdString();
+            user->password_hash = query.value(2).toString().toStdString();
+            user->email = query.value(3).toString().toStdString();
+            user->role_id = query.value(4).toInt();
+            user->department_id = query.value(5).toInt();
+            user->first_name = query.value(6).toString().toStdString();
+            user->last_name = query.value(7).toString().toStdString();
+            user->phone = query.value(8).toString().toStdString();
+            user->is_active = query.value(9).toBool();
+            users.push_back(std::move(user));
+        }
     }
-
-    sqlite3_finalize(stmt);
     return users;
 }
