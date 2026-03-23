@@ -2,15 +2,17 @@
 #include "src/common/repository/role_repository.h"
 #include "src/common/repository/user_repository.h"
 #include <QDateTime>
+#include <mutex>
 
 // 静态实例
+static std::once_flag onceFlag;
 static RoleManagementService* instance = nullptr;
 
 RoleManagementService& RoleManagementService::getInstance()
 {
-    if (!instance) {
+    std::call_once(onceFlag, []() {
         instance = new RoleManagementService();
-    }
+    });
     return *instance;
 }
 
@@ -216,7 +218,7 @@ QStringList RoleManagementService::getRolePermissions(int roleId) const
         return QStringList();
     }
 
-    return role.getPermissions().split(",", Qt::SkipEmptyParts);
+    return role.getPermissions().split(",", QString::SkipEmptyParts);
 }
 
 bool RoleManagementService::addUserToRole(int userId, int roleId, int operatorId)

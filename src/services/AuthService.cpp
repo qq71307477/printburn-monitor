@@ -5,15 +5,17 @@
 #include <QCryptographicHash>
 #include <QRegularExpression>
 #include <QStringList>
+#include <mutex>
 
 // 静态实例
+static std::once_flag onceFlag;
 static AuthService* instance = nullptr;
 
 AuthService& AuthService::getInstance()
 {
-    if (!instance) {
+    std::call_once(onceFlag, []() {
         instance = new AuthService();
-    }
+    });
     return *instance;
 }
 
@@ -122,7 +124,7 @@ bool AuthService::hasPermission(const QString &permission) const
         }
 
         // 权限字符串格式为逗号分隔的权限列表，如 "CREATE_USER,UPDATE_USER,DELETE_USER"
-        QStringList permissionList = permissionsStr.split(',', Qt::SkipEmptyParts);
+        QStringList permissionList = permissionsStr.split(',', QString::SkipEmptyParts);
         for (QString &perm : permissionList) {
             perm = perm.trimmed();
             if (perm == permission || perm == "*") {

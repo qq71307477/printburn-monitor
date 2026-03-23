@@ -9,6 +9,7 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <mutex>
 
 // Helper function to escape CSV fields
 static QString escapeCsvField(const QString &field)
@@ -23,13 +24,14 @@ static QString escapeCsvField(const QString &field)
 }
 
 // 静态实例
+static std::once_flag onceFlag;
 static UserManagementService* instance = nullptr;
 
 UserManagementService& UserManagementService::getInstance()
 {
-    if (!instance) {
+    std::call_once(onceFlag, []() {
         instance = new UserManagementService();
-    }
+    });
     return *instance;
 }
 
@@ -427,7 +429,7 @@ bool UserManagementService::validateUserPermission(int userId, const QString &pe
         }
 
         // 权限字符串格式为逗号分隔的权限列表，如 "CREATE_USER,UPDATE_USER,DELETE_USER"
-        QStringList permissionList = permissionsStr.split(',', Qt::SkipEmptyParts);
+        QStringList permissionList = permissionsStr.split(',', QString::SkipEmptyParts);
         for (QString &perm : permissionList) {
             perm = perm.trimmed();
             if (perm == permission || perm == "*") {
