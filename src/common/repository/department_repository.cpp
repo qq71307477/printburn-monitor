@@ -1,4 +1,5 @@
 #include "department_repository.h"
+#include <QVariant>
 
 DepartmentRepository::DepartmentRepository(DatabaseManager* db_manager) : db_manager_(db_manager) {}
 

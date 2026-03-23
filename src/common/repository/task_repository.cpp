@@ -1,4 +1,5 @@
 #include "task_repository.h"
+#include <QVariant>
 #include <QDateTime>
 
 // Static member initialization

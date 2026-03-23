@@ -1,4 +1,5 @@
 #include "user_repository.h"
+#include <QVariant>
 
 // Static member initialization
 DatabaseManager* UserRepository::default_db_manager_ = nullptr;

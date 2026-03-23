@@ -1,4 +1,5 @@
 #include "device_repository.h"
+#include <QVariant>
 
 // Static member initialization
 DatabaseManager* DeviceRepository::default_db_manager_ = nullptr;

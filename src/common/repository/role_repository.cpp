@@ -1,4 +1,5 @@
 #include "role_repository.h"
+#include <QVariant>
 
 // Static member initialization
 DatabaseManager* RoleRepository::default_db_manager_ = nullptr;
