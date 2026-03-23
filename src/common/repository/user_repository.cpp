@@ -1,5 +1,10 @@
 #include "user_repository.h"
 
+// Static member initialization
+DatabaseManager* UserRepository::default_db_manager_ = nullptr;
+
+UserRepository::UserRepository() : db_manager_(default_db_manager_) {}
+
 UserRepository::UserRepository(DatabaseManager* db_manager) : db_manager_(db_manager) {}
 
 bool UserRepository::create_table() {
@@ -29,7 +34,200 @@ bool UserRepository::create_table() {
     return db_manager_->execute_query(sql);
 }
 
+// Qt-style methods for services
+User UserRepository::findById(int id) {
+    User user;
+    if (!db_manager_) return user;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
+                  "first_name, last_name, phone, is_active FROM users WHERE id = ?");
+    query.addBindValue(id);
+
+    if (query.exec() && query.next()) {
+        user.id = query.value(0).toInt();
+        user.username = query.value(1).toString().toStdString();
+        user.password_hash = query.value(2).toString().toStdString();
+        user.email = query.value(3).toString().toStdString();
+        user.role_id = query.value(4).toInt();
+        user.department_id = query.value(5).toInt();
+        user.first_name = query.value(6).toString().toStdString();
+        user.last_name = query.value(7).toString().toStdString();
+        user.phone = query.value(8).toString().toStdString();
+        user.is_active = query.value(9).toBool();
+    }
+    return user;
+}
+
+User UserRepository::findByUsername(const QString& username) {
+    User user;
+    if (!db_manager_) return user;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
+                  "first_name, last_name, phone, is_active FROM users WHERE username = ?");
+    query.addBindValue(username);
+
+    if (query.exec() && query.next()) {
+        user.id = query.value(0).toInt();
+        user.username = query.value(1).toString().toStdString();
+        user.password_hash = query.value(2).toString().toStdString();
+        user.email = query.value(3).toString().toStdString();
+        user.role_id = query.value(4).toInt();
+        user.department_id = query.value(5).toInt();
+        user.first_name = query.value(6).toString().toStdString();
+        user.last_name = query.value(7).toString().toStdString();
+        user.phone = query.value(8).toString().toStdString();
+        user.is_active = query.value(9).toBool();
+    }
+    return user;
+}
+
+QList<User> UserRepository::findAll() {
+    QList<User> users;
+    if (!db_manager_) return users;
+
+    QSqlQuery query(db_manager_->get_connection());
+
+    if (query.exec("SELECT id, username, password_hash, email, role_id, department_id, "
+                   "first_name, last_name, phone, is_active FROM users")) {
+        while (query.next()) {
+            User user;
+            user.id = query.value(0).toInt();
+            user.username = query.value(1).toString().toStdString();
+            user.password_hash = query.value(2).toString().toStdString();
+            user.email = query.value(3).toString().toStdString();
+            user.role_id = query.value(4).toInt();
+            user.department_id = query.value(5).toInt();
+            user.first_name = query.value(6).toString().toStdString();
+            user.last_name = query.value(7).toString().toStdString();
+            user.phone = query.value(8).toString().toStdString();
+            user.is_active = query.value(9).toBool();
+            users.append(user);
+        }
+    }
+    return users;
+}
+
+bool UserRepository::deleteById(int id) {
+    if (!db_manager_) return false;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("DELETE FROM users WHERE id = ?");
+    query.addBindValue(id);
+    return query.exec();
+}
+
+bool UserRepository::create(User& user) {
+    if (!db_manager_) return false;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("INSERT INTO users (username, password_hash, email, role_id, department_id, "
+                  "first_name, last_name, phone, is_active) "
+                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    query.addBindValue(QString::fromStdString(user.username));
+    query.addBindValue(QString::fromStdString(user.password_hash));
+    query.addBindValue(QString::fromStdString(user.email));
+    query.addBindValue(user.role_id);
+    query.addBindValue(user.department_id);
+    query.addBindValue(QString::fromStdString(user.first_name));
+    query.addBindValue(QString::fromStdString(user.last_name));
+    query.addBindValue(QString::fromStdString(user.phone));
+    query.addBindValue(user.is_active);
+
+    if (query.exec()) {
+        user.id = query.lastInsertId().toInt();
+        return true;
+    }
+    return false;
+}
+
+bool UserRepository::update(const User& user) {
+    if (!db_manager_) return false;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("UPDATE users SET username = ?, password_hash = ?, email = ?, role_id = ?, "
+                  "department_id = ?, first_name = ?, last_name = ?, phone = ?, is_active = ?, "
+                  "updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+    query.addBindValue(QString::fromStdString(user.username));
+    query.addBindValue(QString::fromStdString(user.password_hash));
+    query.addBindValue(QString::fromStdString(user.email));
+    query.addBindValue(user.role_id);
+    query.addBindValue(user.department_id);
+    query.addBindValue(QString::fromStdString(user.first_name));
+    query.addBindValue(QString::fromStdString(user.last_name));
+    query.addBindValue(QString::fromStdString(user.phone));
+    query.addBindValue(user.is_active);
+    query.addBindValue(user.id);
+
+    return query.exec();
+}
+
+QList<User> UserRepository::search(const QString& keyword) {
+    QList<User> users;
+    if (!db_manager_) return users;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
+                  "first_name, last_name, phone, is_active FROM users "
+                  "WHERE username LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR email LIKE ?");
+    QString pattern = "%" + keyword + "%";
+    query.addBindValue(pattern);
+    query.addBindValue(pattern);
+    query.addBindValue(pattern);
+    query.addBindValue(pattern);
+
+    if (query.exec()) {
+        while (query.next()) {
+            User user;
+            user.id = query.value(0).toInt();
+            user.username = query.value(1).toString().toStdString();
+            user.password_hash = query.value(2).toString().toStdString();
+            user.email = query.value(3).toString().toStdString();
+            user.role_id = query.value(4).toInt();
+            user.department_id = query.value(5).toInt();
+            user.first_name = query.value(6).toString().toStdString();
+            user.last_name = query.value(7).toString().toStdString();
+            user.phone = query.value(8).toString().toStdString();
+            user.is_active = query.value(9).toBool();
+            users.append(user);
+        }
+    }
+    return users;
+}
+
+QList<User> UserRepository::findByDepartmentId(int department_id) {
+    QList<User> users;
+    if (!db_manager_) return users;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
+                  "first_name, last_name, phone, is_active FROM users WHERE department_id = ?");
+    query.addBindValue(department_id);
+
+    if (query.exec()) {
+        while (query.next()) {
+            User user;
+            user.id = query.value(0).toInt();
+            user.username = query.value(1).toString().toStdString();
+            user.password_hash = query.value(2).toString().toStdString();
+            user.email = query.value(3).toString().toStdString();
+            user.role_id = query.value(4).toInt();
+            user.department_id = query.value(5).toInt();
+            user.first_name = query.value(6).toString().toStdString();
+            user.last_name = query.value(7).toString().toStdString();
+            user.phone = query.value(8).toString().toStdString();
+            user.is_active = query.value(9).toBool();
+            users.append(user);
+        }
+    }
+    return users;
+}
+
+// Legacy snake_case methods for backward compatibility
 std::unique_ptr<User> UserRepository::find_by_id(int id) {
+    if (!db_manager_) return nullptr;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
                   "first_name, last_name, phone, is_active FROM users WHERE id = ?");
@@ -54,6 +252,8 @@ std::unique_ptr<User> UserRepository::find_by_id(int id) {
 
 std::vector<std::unique_ptr<User>> UserRepository::find_all() {
     std::vector<std::unique_ptr<User>> users;
+    if (!db_manager_) return users;
+
     QSqlQuery query(db_manager_->get_connection());
 
     if (query.exec("SELECT id, username, password_hash, email, role_id, department_id, "
@@ -77,6 +277,8 @@ std::vector<std::unique_ptr<User>> UserRepository::find_all() {
 }
 
 std::unique_ptr<User> UserRepository::find_by_username(const std::string& username) {
+    if (!db_manager_) return nullptr;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
                   "first_name, last_name, phone, is_active FROM users WHERE username = ?");
@@ -100,6 +302,8 @@ std::unique_ptr<User> UserRepository::find_by_username(const std::string& userna
 }
 
 std::unique_ptr<User> UserRepository::find_by_email(const std::string& email) {
+    if (!db_manager_) return nullptr;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
                   "first_name, last_name, phone, is_active FROM users WHERE email = ?");
@@ -122,56 +326,14 @@ std::unique_ptr<User> UserRepository::find_by_email(const std::string& email) {
     return nullptr;
 }
 
-bool UserRepository::create(User& user) {
-    QSqlQuery query(db_manager_->get_connection());
-    query.prepare("INSERT INTO users (username, password_hash, email, role_id, department_id, "
-                  "first_name, last_name, phone, is_active) "
-                  "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    query.addBindValue(QString::fromStdString(user.username));
-    query.addBindValue(QString::fromStdString(user.password_hash));
-    query.addBindValue(QString::fromStdString(user.email));
-    query.addBindValue(user.role_id);
-    query.addBindValue(user.department_id);
-    query.addBindValue(QString::fromStdString(user.first_name));
-    query.addBindValue(QString::fromStdString(user.last_name));
-    query.addBindValue(QString::fromStdString(user.phone));
-    query.addBindValue(user.is_active);
-
-    if (query.exec()) {
-        user.id = query.lastInsertId().toInt();
-        return true;
-    }
-    return false;
-}
-
-bool UserRepository::update(const User& user) {
-    QSqlQuery query(db_manager_->get_connection());
-    query.prepare("UPDATE users SET username = ?, password_hash = ?, email = ?, role_id = ?, "
-                  "department_id = ?, first_name = ?, last_name = ?, phone = ?, is_active = ?, "
-                  "updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-    query.addBindValue(QString::fromStdString(user.username));
-    query.addBindValue(QString::fromStdString(user.password_hash));
-    query.addBindValue(QString::fromStdString(user.email));
-    query.addBindValue(user.role_id);
-    query.addBindValue(user.department_id);
-    query.addBindValue(QString::fromStdString(user.first_name));
-    query.addBindValue(QString::fromStdString(user.last_name));
-    query.addBindValue(QString::fromStdString(user.phone));
-    query.addBindValue(user.is_active);
-    query.addBindValue(user.id);
-
-    return query.exec();
-}
-
 bool UserRepository::remove(int id) {
-    QSqlQuery query(db_manager_->get_connection());
-    query.prepare("DELETE FROM users WHERE id = ?");
-    query.addBindValue(id);
-    return query.exec();
+    return deleteById(id);
 }
 
 std::vector<std::unique_ptr<User>> UserRepository::find_by_department(int department_id) {
     std::vector<std::unique_ptr<User>> users;
+    if (!db_manager_) return users;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
                   "first_name, last_name, phone, is_active FROM users WHERE department_id = ?");
@@ -198,6 +360,8 @@ std::vector<std::unique_ptr<User>> UserRepository::find_by_department(int depart
 
 std::vector<std::unique_ptr<User>> UserRepository::find_by_role(int role_id) {
     std::vector<std::unique_ptr<User>> users;
+    if (!db_manager_) return users;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
                   "first_name, last_name, phone, is_active FROM users WHERE role_id = ?");

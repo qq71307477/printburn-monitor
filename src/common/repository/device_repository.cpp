@@ -1,5 +1,10 @@
 #include "device_repository.h"
 
+// Static member initialization
+DatabaseManager* DeviceRepository::default_db_manager_ = nullptr;
+
+DeviceRepository::DeviceRepository() : db_manager_(default_db_manager_) {}
+
 DeviceRepository::DeviceRepository(DatabaseManager* db_manager) : db_manager_(db_manager) {}
 
 bool DeviceRepository::create_table() {
@@ -28,7 +33,226 @@ bool DeviceRepository::create_table() {
     return db_manager_->execute_query(sql);
 }
 
+// Qt-style methods for services
+Device DeviceRepository::findById(int id) {
+    Device device;
+    if (!db_manager_) return device;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
+                  "status, specifications, is_monitored FROM devices WHERE id = ?");
+    query.addBindValue(id);
+
+    if (query.exec() && query.next()) {
+        device.id = query.value(0).toInt();
+        device.name = query.value(1).toString().toStdString();
+        device.device_id = query.value(2).toString().toStdString();
+        device.device_type = query.value(3).toString().toStdString();
+        device.ip_address = query.value(4).toString().toStdString();
+        device.location = query.value(5).toString().toStdString();
+        device.assigned_user_id = query.value(6).toInt();
+        device.status = query.value(7).toString().toStdString();
+        device.specifications = query.value(8).toString().toStdString();
+        device.is_monitored = query.value(9).toBool();
+    }
+    return device;
+}
+
+Device DeviceRepository::findBySerialNumber(const QString& serialNumber) {
+    Device device;
+    if (!db_manager_) return device;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
+                  "status, specifications, is_monitored FROM devices WHERE device_id = ?");
+    query.addBindValue(serialNumber);
+
+    if (query.exec() && query.next()) {
+        device.id = query.value(0).toInt();
+        device.name = query.value(1).toString().toStdString();
+        device.device_id = query.value(2).toString().toStdString();
+        device.device_type = query.value(3).toString().toStdString();
+        device.ip_address = query.value(4).toString().toStdString();
+        device.location = query.value(5).toString().toStdString();
+        device.assigned_user_id = query.value(6).toInt();
+        device.status = query.value(7).toString().toStdString();
+        device.specifications = query.value(8).toString().toStdString();
+        device.is_monitored = query.value(9).toBool();
+    }
+    return device;
+}
+
+QList<Device> DeviceRepository::findAll() {
+    QList<Device> devices;
+    if (!db_manager_) return devices;
+
+    QSqlQuery query(db_manager_->get_connection());
+
+    if (query.exec("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
+                   "status, specifications, is_monitored FROM devices")) {
+        while (query.next()) {
+            Device device;
+            device.id = query.value(0).toInt();
+            device.name = query.value(1).toString().toStdString();
+            device.device_id = query.value(2).toString().toStdString();
+            device.device_type = query.value(3).toString().toStdString();
+            device.ip_address = query.value(4).toString().toStdString();
+            device.location = query.value(5).toString().toStdString();
+            device.assigned_user_id = query.value(6).toInt();
+            device.status = query.value(7).toString().toStdString();
+            device.specifications = query.value(8).toString().toStdString();
+            device.is_monitored = query.value(9).toBool();
+            devices.append(device);
+        }
+    }
+    return devices;
+}
+
+bool DeviceRepository::deleteById(int id) {
+    if (!db_manager_) return false;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("DELETE FROM devices WHERE id = ?");
+    query.addBindValue(id);
+    return query.exec();
+}
+
+bool DeviceRepository::create(Device& device) {
+    if (!db_manager_) return false;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("INSERT INTO devices (name, device_id, device_type, ip_address, location, assigned_user_id, "
+                  "status, specifications, is_monitored) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    query.addBindValue(QString::fromStdString(device.name));
+    query.addBindValue(QString::fromStdString(device.device_id));
+    query.addBindValue(QString::fromStdString(device.device_type));
+    query.addBindValue(QString::fromStdString(device.ip_address));
+    query.addBindValue(QString::fromStdString(device.location));
+    query.addBindValue(device.assigned_user_id);
+    query.addBindValue(QString::fromStdString(device.status));
+    query.addBindValue(QString::fromStdString(device.specifications));
+    query.addBindValue(device.is_monitored);
+
+    if (query.exec()) {
+        device.id = query.lastInsertId().toInt();
+        return true;
+    }
+    return false;
+}
+
+bool DeviceRepository::update(const Device& device) {
+    if (!db_manager_) return false;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("UPDATE devices SET name = ?, device_type = ?, ip_address = ?, location = ?, assigned_user_id = ?, "
+                  "status = ?, specifications = ?, is_monitored = ?, last_seen = CURRENT_TIMESTAMP, "
+                  "updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+    query.addBindValue(QString::fromStdString(device.name));
+    query.addBindValue(QString::fromStdString(device.device_type));
+    query.addBindValue(QString::fromStdString(device.ip_address));
+    query.addBindValue(QString::fromStdString(device.location));
+    query.addBindValue(device.assigned_user_id);
+    query.addBindValue(QString::fromStdString(device.status));
+    query.addBindValue(QString::fromStdString(device.specifications));
+    query.addBindValue(device.is_monitored);
+    query.addBindValue(device.id);
+
+    return query.exec();
+}
+
+QList<Device> DeviceRepository::search(const QString& keyword) {
+    QList<Device> devices;
+    if (!db_manager_) return devices;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
+                  "status, specifications, is_monitored FROM devices "
+                  "WHERE name LIKE ? OR device_id LIKE ? OR ip_address LIKE ? OR location LIKE ?");
+    QString pattern = "%" + keyword + "%";
+    query.addBindValue(pattern);
+    query.addBindValue(pattern);
+    query.addBindValue(pattern);
+    query.addBindValue(pattern);
+
+    if (query.exec()) {
+        while (query.next()) {
+            Device device;
+            device.id = query.value(0).toInt();
+            device.name = query.value(1).toString().toStdString();
+            device.device_id = query.value(2).toString().toStdString();
+            device.device_type = query.value(3).toString().toStdString();
+            device.ip_address = query.value(4).toString().toStdString();
+            device.location = query.value(5).toString().toStdString();
+            device.assigned_user_id = query.value(6).toInt();
+            device.status = query.value(7).toString().toStdString();
+            device.specifications = query.value(8).toString().toStdString();
+            device.is_monitored = query.value(9).toBool();
+            devices.append(device);
+        }
+    }
+    return devices;
+}
+
+QList<Device> DeviceRepository::findByType(const QString& deviceType) {
+    QList<Device> devices;
+    if (!db_manager_) return devices;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
+                  "status, specifications, is_monitored FROM devices WHERE device_type = ?");
+    query.addBindValue(deviceType);
+
+    if (query.exec()) {
+        while (query.next()) {
+            Device device;
+            device.id = query.value(0).toInt();
+            device.name = query.value(1).toString().toStdString();
+            device.device_id = query.value(2).toString().toStdString();
+            device.device_type = query.value(3).toString().toStdString();
+            device.ip_address = query.value(4).toString().toStdString();
+            device.location = query.value(5).toString().toStdString();
+            device.assigned_user_id = query.value(6).toInt();
+            device.status = query.value(7).toString().toStdString();
+            device.specifications = query.value(8).toString().toStdString();
+            device.is_monitored = query.value(9).toBool();
+            devices.append(device);
+        }
+    }
+    return devices;
+}
+
+QList<Device> DeviceRepository::findByUserId(int userId) {
+    QList<Device> devices;
+    if (!db_manager_) return devices;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
+                  "status, specifications, is_monitored FROM devices WHERE assigned_user_id = ?");
+    query.addBindValue(userId);
+
+    if (query.exec()) {
+        while (query.next()) {
+            Device device;
+            device.id = query.value(0).toInt();
+            device.name = query.value(1).toString().toStdString();
+            device.device_id = query.value(2).toString().toStdString();
+            device.device_type = query.value(3).toString().toStdString();
+            device.ip_address = query.value(4).toString().toStdString();
+            device.location = query.value(5).toString().toStdString();
+            device.assigned_user_id = query.value(6).toInt();
+            device.status = query.value(7).toString().toStdString();
+            device.specifications = query.value(8).toString().toStdString();
+            device.is_monitored = query.value(9).toBool();
+            devices.append(device);
+        }
+    }
+    return devices;
+}
+
+// Legacy snake_case methods for backward compatibility
 std::unique_ptr<Device> DeviceRepository::find_by_id(int id) {
+    if (!db_manager_) return nullptr;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
                   "status, specifications, is_monitored FROM devices WHERE id = ?");
@@ -53,6 +277,8 @@ std::unique_ptr<Device> DeviceRepository::find_by_id(int id) {
 
 std::vector<std::unique_ptr<Device>> DeviceRepository::find_all() {
     std::vector<std::unique_ptr<Device>> devices;
+    if (!db_manager_) return devices;
+
     QSqlQuery query(db_manager_->get_connection());
 
     if (query.exec("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
@@ -76,6 +302,8 @@ std::vector<std::unique_ptr<Device>> DeviceRepository::find_all() {
 }
 
 std::unique_ptr<Device> DeviceRepository::find_by_device_id(const std::string& device_id) {
+    if (!db_manager_) return nullptr;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
                   "status, specifications, is_monitored FROM devices WHERE device_id = ?");
@@ -99,6 +327,8 @@ std::unique_ptr<Device> DeviceRepository::find_by_device_id(const std::string& d
 }
 
 std::unique_ptr<Device> DeviceRepository::find_by_ip_address(const std::string& ip_address) {
+    if (!db_manager_) return nullptr;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
                   "status, specifications, is_monitored FROM devices WHERE ip_address = ?");
@@ -121,54 +351,14 @@ std::unique_ptr<Device> DeviceRepository::find_by_ip_address(const std::string& 
     return nullptr;
 }
 
-bool DeviceRepository::create(Device& device) {
-    QSqlQuery query(db_manager_->get_connection());
-    query.prepare("INSERT INTO devices (name, device_id, device_type, ip_address, location, assigned_user_id, "
-                  "status, specifications, is_monitored) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    query.addBindValue(QString::fromStdString(device.name));
-    query.addBindValue(QString::fromStdString(device.device_id));
-    query.addBindValue(QString::fromStdString(device.device_type));
-    query.addBindValue(QString::fromStdString(device.ip_address));
-    query.addBindValue(QString::fromStdString(device.location));
-    query.addBindValue(device.assigned_user_id);
-    query.addBindValue(QString::fromStdString(device.status));
-    query.addBindValue(QString::fromStdString(device.specifications));
-    query.addBindValue(device.is_monitored);
-
-    if (query.exec()) {
-        device.id = query.lastInsertId().toInt();
-        return true;
-    }
-    return false;
-}
-
-bool DeviceRepository::update(const Device& device) {
-    QSqlQuery query(db_manager_->get_connection());
-    query.prepare("UPDATE devices SET name = ?, device_type = ?, ip_address = ?, location = ?, assigned_user_id = ?, "
-                  "status = ?, specifications = ?, is_monitored = ?, last_seen = CURRENT_TIMESTAMP, "
-                  "updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-    query.addBindValue(QString::fromStdString(device.name));
-    query.addBindValue(QString::fromStdString(device.device_type));
-    query.addBindValue(QString::fromStdString(device.ip_address));
-    query.addBindValue(QString::fromStdString(device.location));
-    query.addBindValue(device.assigned_user_id);
-    query.addBindValue(QString::fromStdString(device.status));
-    query.addBindValue(QString::fromStdString(device.specifications));
-    query.addBindValue(device.is_monitored);
-    query.addBindValue(device.id);
-
-    return query.exec();
-}
-
 bool DeviceRepository::remove(int id) {
-    QSqlQuery query(db_manager_->get_connection());
-    query.prepare("DELETE FROM devices WHERE id = ?");
-    query.addBindValue(id);
-    return query.exec();
+    return deleteById(id);
 }
 
 std::vector<std::unique_ptr<Device>> DeviceRepository::find_by_assigned_user(int user_id) {
     std::vector<std::unique_ptr<Device>> devices;
+    if (!db_manager_) return devices;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
                   "status, specifications, is_monitored FROM devices WHERE assigned_user_id = ?");
@@ -195,6 +385,8 @@ std::vector<std::unique_ptr<Device>> DeviceRepository::find_by_assigned_user(int
 
 std::vector<std::unique_ptr<Device>> DeviceRepository::find_by_status(const std::string& status) {
     std::vector<std::unique_ptr<Device>> devices;
+    if (!db_manager_) return devices;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
                   "status, specifications, is_monitored FROM devices WHERE status = ?");
@@ -221,6 +413,8 @@ std::vector<std::unique_ptr<Device>> DeviceRepository::find_by_status(const std:
 
 std::vector<std::unique_ptr<Device>> DeviceRepository::find_by_device_type(const std::string& device_type) {
     std::vector<std::unique_ptr<Device>> devices;
+    if (!db_manager_) return devices;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
                   "status, specifications, is_monitored FROM devices WHERE device_type = ?");

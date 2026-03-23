@@ -11,6 +11,7 @@
 #include <QDateEdit>
 #include <QFileDialog>
 #include <QTableWidget>
+#include <QHeaderView>
 #include <QGroupBox>
 #include <QMessageBox>
 #include <QDateTime>
