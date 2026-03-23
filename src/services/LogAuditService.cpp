@@ -321,7 +321,7 @@ bool LogAuditService::exportLogs(const QString &filePath,
                    .arg(log.username)
                    .arg(log.ipAddress)
                    .arg(log.userAgent)
-                   .arg(log.details.replace("\"", "\"\"")) // 转义双引号
+                   .arg(QString(log.details).replace("\"", "\"\"")) // 转义双引号
                    .arg(log.timestamp.toString("yyyy-MM-dd hh:mm:ss"))
                    .arg(log.severity);
         }
