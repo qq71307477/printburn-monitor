@@ -1,7 +1,7 @@
 # 测试目录的CMakeLists.txt
 
 # 添加Qt测试模块
-find_package(Qt6 REQUIRED COMPONENTS Core Test)
+find_package(Qt5 REQUIRED COMPONENTS Core Test)
 
 # 启用测试编译
 set(CMAKE_INCLUDE_CURRENT_DIR ON)

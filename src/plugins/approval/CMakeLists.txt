@@ -7,7 +7,7 @@ set(PLUGIN_SOURCES
 
 add_library(ApprovalPlugin MODULE ${PLUGIN_SOURCES})
 
-target_link_libraries(ApprovalPlugin PRIVATE Qt6::Core Qt6::Widgets Qt6::Sql)
+target_link_libraries(ApprovalPlugin PRIVATE Qt5::Core Qt5::Widgets Qt5::Sql)
 
 # 安装插件到plugins目录
 install(TARGETS ApprovalPlugin DESTINATION plugins)

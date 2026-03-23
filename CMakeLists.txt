@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 查找Qt库
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets Sql Network Test)
+find_package(Qt5 REQUIRED COMPONENTS Core Widgets Sql Network Test)
 
 # 设置Qt相关编译选项
 set(CMAKE_AUTOMOC ON)
@@ -61,7 +61,7 @@ list(APPEND SOURCES ${SERVICE_SOURCES})
 add_executable(${PROJECT_NAME} ${SOURCES})
 
 # 链接Qt库
-target_link_libraries(${PROJECT_NAME} Qt6::Core Qt6::Widgets Qt6::Sql Qt6::Network)
+target_link_libraries(${PROJECT_NAME} Qt5::Core Qt5::Widgets Qt5::Sql Qt5::Network)
 
 # 添加插件子目录
 add_subdirectory(src/plugins)
