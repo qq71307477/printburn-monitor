@@ -1,7 +1,7 @@
 #ifndef USER_REPOSITORY_H
 #define USER_REPOSITORY_H
 
-#include "models/user_model.h"
+#include "user_model.h"
 #include "database_manager.h"
 #include <QSqlQuery>
 #include <QSqlError>
@@ -32,6 +32,11 @@ public:
     QList<User> search(const QString& keyword);
     QList<User> findByDepartmentId(int department_id);
     QList<User> findByRoleId(int roleId);
+
+    // User-Role relationship management
+    bool addUserRole(int userId, int roleId);
+    bool removeUserRole(int userId, int roleId);
+    bool hasRole(int userId, int roleId);
 
     // Legacy snake_case methods for backward compatibility
     std::unique_ptr<User> find_by_id(int id);

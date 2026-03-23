@@ -61,7 +61,7 @@ list(APPEND SOURCES ${SERVICE_SOURCES})
 add_executable(${PROJECT_NAME} ${SOURCES})
 
 # 链接Qt库
-target_link_libraries(${PROJECT_NAME} Qt5::Core Qt5::Widgets Qt5::Sql Qt5::Network)
+target_link_libraries(${PROJECT_NAME} Qt5::Core Qt5::Widgets Qt5::Sql Qt5::Network Qt5::Test)
 
 # 添加插件子目录
 add_subdirectory(src/plugins)

@@ -7,6 +7,10 @@ set(PLUGIN_SOURCES
 
 add_library(SecurityPlugin MODULE ${PLUGIN_SOURCES})
 
+target_include_directories(SecurityPlugin PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+
 target_link_libraries(SecurityPlugin PRIVATE Qt5::Core Qt5::Widgets Qt5::Sql)
 
 # 安装插件到plugins目录

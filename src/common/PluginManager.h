@@ -34,9 +34,10 @@ public:
 
 private:
     struct PluginData {
-        IPlugin *instance;
-        QLibrary *library;
+        IPlugin *instance = nullptr;
+        QLibrary *library = nullptr;
         QString path;
+        bool initialized = false;
     };
 
     QHash<QString, PluginData> m_plugins;

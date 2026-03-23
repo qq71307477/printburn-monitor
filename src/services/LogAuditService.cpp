@@ -288,8 +288,9 @@ bool LogAuditService::purgeOldLogs(const QDateTime &beforeDate)
         return false;
     }
 
-    int deletedCount = query.numRowsAffected();
-    return true;
+    // numRowsAffected() 在 Qt5/Qt6 中都是有效的 API
+    // 返回值可用于日志记录，但此处只需确认操作成功
+    return query.numRowsAffected() >= 0;
 }
 
 bool LogAuditService::exportLogs(const QString &filePath,

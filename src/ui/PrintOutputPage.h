@@ -70,6 +70,7 @@ private:
     QGroupBox *m_paginationGroup;
     QHBoxLayout *m_paginationLayout;
     QLabel *m_pageInfoLabel;
+    QLabel *m_totalPagesLabel;
     QPushButton *m_prevPageButton;
     QPushButton *m_nextPageButton;
     QSpinBox *m_pageSpinBox;

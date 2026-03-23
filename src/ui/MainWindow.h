@@ -10,7 +10,7 @@
 #include <QStatusBar>
 #include <QTreeWidget>
 #include <QLabel>
-#include "PluginManager.h"
+#include "common/PluginManager.h"
 
 class MainWindow : public QMainWindow
 {

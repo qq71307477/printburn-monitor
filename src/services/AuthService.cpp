@@ -1,8 +1,10 @@
 #include "AuthService.h"
 #include "src/common/repository/user_repository.h"
+#include "src/common/repository/role_repository.h"
 #include "models/user_model.h"
 #include <QCryptographicHash>
 #include <QRegularExpression>
+#include <QStringList>
 
 // 静态实例
 static AuthService* instance = nullptr;
@@ -95,10 +97,39 @@ bool AuthService::hasPermission(const QString &permission) const
         return false;
     }
 
-    // 在实际实现中，这会检查用户的权限
-    // 可以通过用户的角色来确定权限
+    if (permission.isEmpty()) {
+        return false;
+    }
 
-    // 临时实现 - 检查用户角色是否包含所需权限
-    // 这里应该连接到权限验证系统
-    return true; // 简化实现，实际应根据用户角色和权限进行验证
+    // 获取当前用户的角色列表
+    RoleRepository roleRepo;
+    QList<Role> roles = roleRepo.findByUserId(m_currentUser.getId());
+
+    if (roles.isEmpty()) {
+        return false;
+    }
+
+    // 遍历用户的所有角色，检查是否包含所需权限
+    for (const Role &role : roles) {
+        // 检查角色是否激活
+        if (!role.isActive()) {
+            continue;
+        }
+
+        QString permissionsStr = role.getPermissions();
+        if (permissionsStr.isEmpty()) {
+            continue;
+        }
+
+        // 权限字符串格式为逗号分隔的权限列表，如 "CREATE_USER,UPDATE_USER,DELETE_USER"
+        QStringList permissionList = permissionsStr.split(',', Qt::SkipEmptyParts);
+        for (QString &perm : permissionList) {
+            perm = perm.trimmed();
+            if (perm == permission || perm == "*") {
+                return true; // 找到匹配的权限或通配符权限
+            }
+        }
+    }
+
+    return false; // 未找到匹配的权限
 }

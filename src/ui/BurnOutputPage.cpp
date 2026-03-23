@@ -214,8 +214,8 @@ void BurnOutputPage::setupPagination()
     m_paginationLayout->addWidget(m_prevPageButton);
     m_paginationLayout->addWidget(m_pageSpinBox);
     m_paginationLayout->addWidget(new QLabel("/", this));
-    QLabel *totalPagesLabel = new QLabel(QString::number((mTotalCount + mPageSize - 1) / mPageSize), this);
-    m_paginationLayout->addWidget(totalPagesLabel);
+    m_totalPagesLabel = new QLabel(QString::number((mTotalCount + mPageSize - 1) / mPageSize), this);
+    m_paginationLayout->addWidget(m_totalPagesLabel);
     m_paginationLayout->addWidget(m_nextPageButton);
     m_paginationLayout->addWidget(m_pageSizeCombo);
 
@@ -266,11 +266,13 @@ void BurnOutputPage::refreshTasks()
 
     // Update pagination info
     mTotalCount = 12; // In real implementation, this would come from data source
+    int totalPages = (mTotalCount + mPageSize - 1) / mPageSize;
     m_pageInfoLabel->setText(QString("共 %1 条记录，第 %2/%3 页")
                                 .arg(mTotalCount)
                                 .arg(mCurrentPage)
-                                .arg((mTotalCount + mPageSize - 1) / mPageSize));
-    m_pageSpinBox->setMaximum((mTotalCount + mPageSize - 1) / mPageSize);
+                                .arg(totalPages));
+    m_totalPagesLabel->setText(QString::number(totalPages));
+    m_pageSpinBox->setMaximum(totalPages);
 }
 
 void BurnOutputPage::filterTasks()

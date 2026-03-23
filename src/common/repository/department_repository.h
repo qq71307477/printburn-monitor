@@ -1,7 +1,7 @@
 #ifndef DEPARTMENT_REPOSITORY_H
 #define DEPARTMENT_REPOSITORY_H
 
-#include "models/department_model.h"
+#include "department_model.h"
 #include "database_manager.h"
 #include <QSqlQuery>
 #include <QSqlError>

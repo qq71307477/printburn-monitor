@@ -17,6 +17,7 @@
 #include <QDateTime>
 #include <QRadioButton>
 #include <QButtonGroup>
+#include <QFileInfo>
 
 BurnApplicationPage::BurnApplicationPage(QWidget *parent)
     : QWidget(parent)

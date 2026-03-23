@@ -1,5 +1,6 @@
 #include "device_repository.h"
 #include <QVariant>
+#include <QDateTime>
 
 // Static member initialization
 DatabaseManager* DeviceRepository::default_db_manager_ = nullptr;
@@ -9,6 +10,8 @@ DeviceRepository::DeviceRepository() : db_manager_(default_db_manager_) {}
 DeviceRepository::DeviceRepository(DatabaseManager* db_manager) : db_manager_(db_manager) {}
 
 bool DeviceRepository::create_table() {
+    if (!db_manager_) return false;
+
     QString sql = R"(
         CREATE TABLE IF NOT EXISTS devices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,6 +24,7 @@ bool DeviceRepository::create_table() {
             status TEXT DEFAULT 'available',
             specifications TEXT,
             is_monitored BOOLEAN DEFAULT 1,
+            assignment_date DATETIME,
             last_seen DATETIME,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -41,7 +45,7 @@ Device DeviceRepository::findById(int id) {
 
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
-                  "status, specifications, is_monitored FROM devices WHERE id = ?");
+                  "status, specifications, is_monitored, assignment_date FROM devices WHERE id = ?");
     query.addBindValue(id);
 
     if (query.exec() && query.next()) {
@@ -55,6 +59,15 @@ Device DeviceRepository::findById(int id) {
         device.status = query.value(7).toString().toStdString();
         device.specifications = query.value(8).toString().toStdString();
         device.is_monitored = query.value(9).toBool();
+
+        QString assignment_date_str = query.value(10).toString();
+        if (!assignment_date_str.isEmpty()) {
+            QDateTime assignment_date = QDateTime::fromString(assignment_date_str, "yyyy-MM-dd hh:mm:ss");
+            if (!assignment_date.isValid()) {
+                assignment_date = QDateTime::fromString(assignment_date_str, Qt::ISODate);
+            }
+            device.setAssignmentDate(assignment_date);
+        }
     }
     return device;
 }
@@ -65,7 +78,7 @@ Device DeviceRepository::findBySerialNumber(const QString& serialNumber) {
 
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
-                  "status, specifications, is_monitored FROM devices WHERE device_id = ?");
+                  "status, specifications, is_monitored, assignment_date FROM devices WHERE device_id = ?");
     query.addBindValue(serialNumber);
 
     if (query.exec() && query.next()) {
@@ -79,6 +92,15 @@ Device DeviceRepository::findBySerialNumber(const QString& serialNumber) {
         device.status = query.value(7).toString().toStdString();
         device.specifications = query.value(8).toString().toStdString();
         device.is_monitored = query.value(9).toBool();
+
+        QString assignment_date_str = query.value(10).toString();
+        if (!assignment_date_str.isEmpty()) {
+            QDateTime assignment_date = QDateTime::fromString(assignment_date_str, "yyyy-MM-dd hh:mm:ss");
+            if (!assignment_date.isValid()) {
+                assignment_date = QDateTime::fromString(assignment_date_str, Qt::ISODate);
+            }
+            device.setAssignmentDate(assignment_date);
+        }
     }
     return device;
 }
@@ -90,7 +112,7 @@ QList<Device> DeviceRepository::findAll() {
     QSqlQuery query(db_manager_->get_connection());
 
     if (query.exec("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
-                   "status, specifications, is_monitored FROM devices")) {
+                   "status, specifications, is_monitored, assignment_date FROM devices")) {
         while (query.next()) {
             Device device;
             device.id = query.value(0).toInt();
@@ -103,6 +125,15 @@ QList<Device> DeviceRepository::findAll() {
             device.status = query.value(7).toString().toStdString();
             device.specifications = query.value(8).toString().toStdString();
             device.is_monitored = query.value(9).toBool();
+
+            QString assignment_date_str = query.value(10).toString();
+            if (!assignment_date_str.isEmpty()) {
+                QDateTime assignment_date = QDateTime::fromString(assignment_date_str, "yyyy-MM-dd hh:mm:ss");
+                if (!assignment_date.isValid()) {
+                    assignment_date = QDateTime::fromString(assignment_date_str, Qt::ISODate);
+                }
+                device.setAssignmentDate(assignment_date);
+            }
             devices.append(device);
         }
     }
@@ -123,7 +154,7 @@ bool DeviceRepository::create(Device& device) {
 
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("INSERT INTO devices (name, device_id, device_type, ip_address, location, assigned_user_id, "
-                  "status, specifications, is_monitored) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                  "status, specifications, is_monitored, assignment_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     query.addBindValue(QString::fromStdString(device.name));
     query.addBindValue(QString::fromStdString(device.device_id));
     query.addBindValue(QString::fromStdString(device.device_type));
@@ -133,6 +164,13 @@ bool DeviceRepository::create(Device& device) {
     query.addBindValue(QString::fromStdString(device.status));
     query.addBindValue(QString::fromStdString(device.specifications));
     query.addBindValue(device.is_monitored);
+
+    QDateTime assignmentDate = device.getAssignmentDate();
+    if (assignmentDate.isValid()) {
+        query.addBindValue(assignmentDate.toString("yyyy-MM-dd hh:mm:ss"));
+    } else {
+        query.addBindValue(QVariant());
+    }
 
     if (query.exec()) {
         device.id = query.lastInsertId().toInt();
@@ -146,7 +184,7 @@ bool DeviceRepository::update(const Device& device) {
 
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("UPDATE devices SET name = ?, device_type = ?, ip_address = ?, location = ?, assigned_user_id = ?, "
-                  "status = ?, specifications = ?, is_monitored = ?, last_seen = CURRENT_TIMESTAMP, "
+                  "status = ?, specifications = ?, is_monitored = ?, assignment_date = ?, last_seen = CURRENT_TIMESTAMP, "
                   "updated_at = CURRENT_TIMESTAMP WHERE id = ?");
     query.addBindValue(QString::fromStdString(device.name));
     query.addBindValue(QString::fromStdString(device.device_type));
@@ -156,6 +194,14 @@ bool DeviceRepository::update(const Device& device) {
     query.addBindValue(QString::fromStdString(device.status));
     query.addBindValue(QString::fromStdString(device.specifications));
     query.addBindValue(device.is_monitored);
+
+    QDateTime assignmentDate = device.getAssignmentDate();
+    if (assignmentDate.isValid()) {
+        query.addBindValue(assignmentDate.toString("yyyy-MM-dd hh:mm:ss"));
+    } else {
+        query.addBindValue(QVariant());
+    }
+
     query.addBindValue(device.id);
 
     return query.exec();
@@ -167,7 +213,7 @@ QList<Device> DeviceRepository::search(const QString& keyword) {
 
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
-                  "status, specifications, is_monitored FROM devices "
+                  "status, specifications, is_monitored, assignment_date FROM devices "
                   "WHERE name LIKE ? OR device_id LIKE ? OR ip_address LIKE ? OR location LIKE ?");
     QString pattern = "%" + keyword + "%";
     query.addBindValue(pattern);
@@ -188,6 +234,15 @@ QList<Device> DeviceRepository::search(const QString& keyword) {
             device.status = query.value(7).toString().toStdString();
             device.specifications = query.value(8).toString().toStdString();
             device.is_monitored = query.value(9).toBool();
+
+            QString assignment_date_str = query.value(10).toString();
+            if (!assignment_date_str.isEmpty()) {
+                QDateTime assignment_date = QDateTime::fromString(assignment_date_str, "yyyy-MM-dd hh:mm:ss");
+                if (!assignment_date.isValid()) {
+                    assignment_date = QDateTime::fromString(assignment_date_str, Qt::ISODate);
+                }
+                device.setAssignmentDate(assignment_date);
+            }
             devices.append(device);
         }
     }
@@ -200,7 +255,7 @@ QList<Device> DeviceRepository::findByType(const QString& deviceType) {
 
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
-                  "status, specifications, is_monitored FROM devices WHERE device_type = ?");
+                  "status, specifications, is_monitored, assignment_date FROM devices WHERE device_type = ?");
     query.addBindValue(deviceType);
 
     if (query.exec()) {
@@ -216,6 +271,15 @@ QList<Device> DeviceRepository::findByType(const QString& deviceType) {
             device.status = query.value(7).toString().toStdString();
             device.specifications = query.value(8).toString().toStdString();
             device.is_monitored = query.value(9).toBool();
+
+            QString assignment_date_str = query.value(10).toString();
+            if (!assignment_date_str.isEmpty()) {
+                QDateTime assignment_date = QDateTime::fromString(assignment_date_str, "yyyy-MM-dd hh:mm:ss");
+                if (!assignment_date.isValid()) {
+                    assignment_date = QDateTime::fromString(assignment_date_str, Qt::ISODate);
+                }
+                device.setAssignmentDate(assignment_date);
+            }
             devices.append(device);
         }
     }
@@ -228,7 +292,7 @@ QList<Device> DeviceRepository::findByUserId(int userId) {
 
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
-                  "status, specifications, is_monitored FROM devices WHERE assigned_user_id = ?");
+                  "status, specifications, is_monitored, assignment_date FROM devices WHERE assigned_user_id = ?");
     query.addBindValue(userId);
 
     if (query.exec()) {
@@ -244,6 +308,15 @@ QList<Device> DeviceRepository::findByUserId(int userId) {
             device.status = query.value(7).toString().toStdString();
             device.specifications = query.value(8).toString().toStdString();
             device.is_monitored = query.value(9).toBool();
+
+            QString assignment_date_str = query.value(10).toString();
+            if (!assignment_date_str.isEmpty()) {
+                QDateTime assignment_date = QDateTime::fromString(assignment_date_str, "yyyy-MM-dd hh:mm:ss");
+                if (!assignment_date.isValid()) {
+                    assignment_date = QDateTime::fromString(assignment_date_str, Qt::ISODate);
+                }
+                device.setAssignmentDate(assignment_date);
+            }
             devices.append(device);
         }
     }
@@ -256,7 +329,7 @@ std::unique_ptr<Device> DeviceRepository::find_by_id(int id) {
 
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
-                  "status, specifications, is_monitored FROM devices WHERE id = ?");
+                  "status, specifications, is_monitored, assignment_date FROM devices WHERE id = ?");
     query.addBindValue(id);
 
     if (query.exec() && query.next()) {
@@ -271,6 +344,15 @@ std::unique_ptr<Device> DeviceRepository::find_by_id(int id) {
         device->status = query.value(7).toString().toStdString();
         device->specifications = query.value(8).toString().toStdString();
         device->is_monitored = query.value(9).toBool();
+
+        QString assignment_date_str = query.value(10).toString();
+        if (!assignment_date_str.isEmpty()) {
+            QDateTime assignment_date = QDateTime::fromString(assignment_date_str, "yyyy-MM-dd hh:mm:ss");
+            if (!assignment_date.isValid()) {
+                assignment_date = QDateTime::fromString(assignment_date_str, Qt::ISODate);
+            }
+            device->setAssignmentDate(assignment_date);
+        }
         return device;
     }
     return nullptr;
@@ -283,7 +365,7 @@ std::vector<std::unique_ptr<Device>> DeviceRepository::find_all() {
     QSqlQuery query(db_manager_->get_connection());
 
     if (query.exec("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
-                   "status, specifications, is_monitored FROM devices")) {
+                   "status, specifications, is_monitored, assignment_date FROM devices")) {
         while (query.next()) {
             auto device = std::make_unique<Device>();
             device->id = query.value(0).toInt();
@@ -296,6 +378,15 @@ std::vector<std::unique_ptr<Device>> DeviceRepository::find_all() {
             device->status = query.value(7).toString().toStdString();
             device->specifications = query.value(8).toString().toStdString();
             device->is_monitored = query.value(9).toBool();
+
+            QString assignment_date_str = query.value(10).toString();
+            if (!assignment_date_str.isEmpty()) {
+                QDateTime assignment_date = QDateTime::fromString(assignment_date_str, "yyyy-MM-dd hh:mm:ss");
+                if (!assignment_date.isValid()) {
+                    assignment_date = QDateTime::fromString(assignment_date_str, Qt::ISODate);
+                }
+                device->setAssignmentDate(assignment_date);
+            }
             devices.push_back(std::move(device));
         }
     }
@@ -307,7 +398,7 @@ std::unique_ptr<Device> DeviceRepository::find_by_device_id(const std::string& d
 
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
-                  "status, specifications, is_monitored FROM devices WHERE device_id = ?");
+                  "status, specifications, is_monitored, assignment_date FROM devices WHERE device_id = ?");
     query.addBindValue(QString::fromStdString(device_id));
 
     if (query.exec() && query.next()) {
@@ -322,6 +413,15 @@ std::unique_ptr<Device> DeviceRepository::find_by_device_id(const std::string& d
         device->status = query.value(7).toString().toStdString();
         device->specifications = query.value(8).toString().toStdString();
         device->is_monitored = query.value(9).toBool();
+
+        QString assignment_date_str = query.value(10).toString();
+        if (!assignment_date_str.isEmpty()) {
+            QDateTime assignment_date = QDateTime::fromString(assignment_date_str, "yyyy-MM-dd hh:mm:ss");
+            if (!assignment_date.isValid()) {
+                assignment_date = QDateTime::fromString(assignment_date_str, Qt::ISODate);
+            }
+            device->setAssignmentDate(assignment_date);
+        }
         return device;
     }
     return nullptr;
@@ -332,7 +432,7 @@ std::unique_ptr<Device> DeviceRepository::find_by_ip_address(const std::string& 
 
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
-                  "status, specifications, is_monitored FROM devices WHERE ip_address = ?");
+                  "status, specifications, is_monitored, assignment_date FROM devices WHERE ip_address = ?");
     query.addBindValue(QString::fromStdString(ip_address));
 
     if (query.exec() && query.next()) {
@@ -347,6 +447,15 @@ std::unique_ptr<Device> DeviceRepository::find_by_ip_address(const std::string& 
         device->status = query.value(7).toString().toStdString();
         device->specifications = query.value(8).toString().toStdString();
         device->is_monitored = query.value(9).toBool();
+
+        QString assignment_date_str = query.value(10).toString();
+        if (!assignment_date_str.isEmpty()) {
+            QDateTime assignment_date = QDateTime::fromString(assignment_date_str, "yyyy-MM-dd hh:mm:ss");
+            if (!assignment_date.isValid()) {
+                assignment_date = QDateTime::fromString(assignment_date_str, Qt::ISODate);
+            }
+            device->setAssignmentDate(assignment_date);
+        }
         return device;
     }
     return nullptr;
@@ -362,7 +471,7 @@ std::vector<std::unique_ptr<Device>> DeviceRepository::find_by_assigned_user(int
 
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
-                  "status, specifications, is_monitored FROM devices WHERE assigned_user_id = ?");
+                  "status, specifications, is_monitored, assignment_date FROM devices WHERE assigned_user_id = ?");
     query.addBindValue(user_id);
 
     if (query.exec()) {
@@ -378,6 +487,15 @@ std::vector<std::unique_ptr<Device>> DeviceRepository::find_by_assigned_user(int
             device->status = query.value(7).toString().toStdString();
             device->specifications = query.value(8).toString().toStdString();
             device->is_monitored = query.value(9).toBool();
+
+            QString assignment_date_str = query.value(10).toString();
+            if (!assignment_date_str.isEmpty()) {
+                QDateTime assignment_date = QDateTime::fromString(assignment_date_str, "yyyy-MM-dd hh:mm:ss");
+                if (!assignment_date.isValid()) {
+                    assignment_date = QDateTime::fromString(assignment_date_str, Qt::ISODate);
+                }
+                device->setAssignmentDate(assignment_date);
+            }
             devices.push_back(std::move(device));
         }
     }
@@ -390,7 +508,7 @@ std::vector<std::unique_ptr<Device>> DeviceRepository::find_by_status(const std:
 
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
-                  "status, specifications, is_monitored FROM devices WHERE status = ?");
+                  "status, specifications, is_monitored, assignment_date FROM devices WHERE status = ?");
     query.addBindValue(QString::fromStdString(status));
 
     if (query.exec()) {
@@ -406,6 +524,15 @@ std::vector<std::unique_ptr<Device>> DeviceRepository::find_by_status(const std:
             device->status = query.value(7).toString().toStdString();
             device->specifications = query.value(8).toString().toStdString();
             device->is_monitored = query.value(9).toBool();
+
+            QString assignment_date_str = query.value(10).toString();
+            if (!assignment_date_str.isEmpty()) {
+                QDateTime assignment_date = QDateTime::fromString(assignment_date_str, "yyyy-MM-dd hh:mm:ss");
+                if (!assignment_date.isValid()) {
+                    assignment_date = QDateTime::fromString(assignment_date_str, Qt::ISODate);
+                }
+                device->setAssignmentDate(assignment_date);
+            }
             devices.push_back(std::move(device));
         }
     }
@@ -418,7 +545,7 @@ std::vector<std::unique_ptr<Device>> DeviceRepository::find_by_device_type(const
 
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, device_id, device_type, ip_address, location, assigned_user_id, "
-                  "status, specifications, is_monitored FROM devices WHERE device_type = ?");
+                  "status, specifications, is_monitored, assignment_date FROM devices WHERE device_type = ?");
     query.addBindValue(QString::fromStdString(device_type));
 
     if (query.exec()) {
@@ -434,6 +561,15 @@ std::vector<std::unique_ptr<Device>> DeviceRepository::find_by_device_type(const
             device->status = query.value(7).toString().toStdString();
             device->specifications = query.value(8).toString().toStdString();
             device->is_monitored = query.value(9).toBool();
+
+            QString assignment_date_str = query.value(10).toString();
+            if (!assignment_date_str.isEmpty()) {
+                QDateTime assignment_date = QDateTime::fromString(assignment_date_str, "yyyy-MM-dd hh:mm:ss");
+                if (!assignment_date.isValid()) {
+                    assignment_date = QDateTime::fromString(assignment_date_str, Qt::ISODate);
+                }
+                device->setAssignmentDate(assignment_date);
+            }
             devices.push_back(std::move(device));
         }
     }

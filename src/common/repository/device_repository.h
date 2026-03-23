@@ -1,7 +1,7 @@
 #ifndef DEVICE_REPOSITORY_H
 #define DEVICE_REPOSITORY_H
 
-#include "models/device_model.h"
+#include "device_model.h"
 #include "database_manager.h"
 #include <QSqlQuery>
 #include <QSqlError>

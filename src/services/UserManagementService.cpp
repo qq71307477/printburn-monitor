@@ -3,6 +3,24 @@
 #include "src/common/repository/role_repository.h"
 #include <QDateTime>
 #include <QCryptographicHash>
+#include <QStringList>
+#include <QFile>
+#include <QTextStream>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
+
+// Helper function to escape CSV fields
+static QString escapeCsvField(const QString &field)
+{
+    // If the field contains comma, quote, or newline, wrap it in quotes and escape quotes
+    if (field.contains(',') || field.contains('"') || field.contains('\n')) {
+        QString escaped = field;
+        escaped.replace("\"", "\"\"");
+        return "\"" + escaped + "\"";
+    }
+    return field;
+}
 
 // 静态实例
 static UserManagementService* instance = nullptr;
@@ -173,8 +191,17 @@ bool UserManagementService::assignRoleToUser(int userId, int roleId, int operato
         return false;
     }
 
-    // 实际的权限分配会在Repository层面处理
-    // 这里只是记录操作日志
+    // 检查用户是否已拥有该角色
+    if (userRepo.hasRole(userId, roleId)) {
+        return true; // 已拥有该角色，视为成功
+    }
+
+    // 添加用户-角色关联
+    if (!userRepo.addUserRole(userId, roleId)) {
+        return false;
+    }
+
+    // 记录操作日志
     logUserOperation(userId, operatorId, "ASSIGN_ROLE",
                     QString("Assigned role '%1' to user '%2'").arg(role.getName()).arg(user.getUsername()));
 
@@ -201,7 +228,17 @@ bool UserManagementService::removeRoleFromUser(int userId, int roleId, int opera
         return false;
     }
 
-    // 实际的权限移除会在Repository层面处理
+    // 检查用户是否拥有该角色
+    if (!userRepo.hasRole(userId, roleId)) {
+        return true; // 用户没有该角色，视为成功
+    }
+
+    // 移除用户-角色关联
+    if (!userRepo.removeUserRole(userId, roleId)) {
+        return false;
+    }
+
+    // 记录操作日志
     logUserOperation(userId, operatorId, "REMOVE_ROLE",
                     QString("Removed role '%1' from user '%2'").arg(role.getName()).arg(user.getUsername()));
 
@@ -260,12 +297,38 @@ bool UserManagementService::bulkImportUsers(const QList<User> &users, int operat
 
 bool UserManagementService::bulkExportUsers(const QList<int> &userIds, const QString &exportPath) const
 {
-    // 这里应该实现导出逻辑
-    // 检查操作者权限
-    // 将用户数据导出到指定路径
-    Q_UNUSED(userIds)
-    Q_UNUSED(exportPath)
-    return true;
+    if (exportPath.isEmpty()) {
+        return false;
+    }
+
+    UserRepository userRepo;
+    QList<User> usersToExport;
+
+    // 获取要导出的用户列表
+    if (userIds.isEmpty()) {
+        // 如果没有指定用户ID，导出所有用户
+        usersToExport = userRepo.findAll();
+    } else {
+        // 导出指定用户
+        for (int userId : userIds) {
+            User user = userRepo.findById(userId);
+            if (user.getId() > 0) {
+                usersToExport.append(user);
+            }
+        }
+    }
+
+    if (usersToExport.isEmpty()) {
+        return false;
+    }
+
+    // 根据文件扩展名决定导出格式
+    if (exportPath.endsWith(".json", Qt::CaseInsensitive)) {
+        return exportUsersToJson(usersToExport, exportPath);
+    } else {
+        // 默认导出为 CSV 格式
+        return exportUsersToCsv(usersToExport, exportPath);
+    }
 }
 
 bool UserManagementService::bulkResetPasswords(const QList<int> &userIds, const QString &newPassword, int operatorId)
@@ -341,16 +404,39 @@ bool UserManagementService::resetUserPassword(int userId, const QString &newPass
 
 bool UserManagementService::validateUserPermission(int userId, const QString &permission) const
 {
+    if (permission.isEmpty()) {
+        return false;
+    }
+
     // 检查用户的角色是否包含指定权限
     QList<Role> userRoles = getUserRoles(userId);
 
-    for (const Role &role : userRoles) {
-        // 实际实现中应该检查角色的权限列表
-        // 这里简化处理，直接返回true
-        Q_UNUSED(role)
+    if (userRoles.isEmpty()) {
+        return false;
     }
 
-    return true;
+    for (const Role &role : userRoles) {
+        // 检查角色是否激活
+        if (!role.isActive()) {
+            continue;
+        }
+
+        QString permissionsStr = role.getPermissions();
+        if (permissionsStr.isEmpty()) {
+            continue;
+        }
+
+        // 权限字符串格式为逗号分隔的权限列表，如 "CREATE_USER,UPDATE_USER,DELETE_USER"
+        QStringList permissionList = permissionsStr.split(',', Qt::SkipEmptyParts);
+        for (QString &perm : permissionList) {
+            perm = perm.trimmed();
+            if (perm == permission || perm == "*") {
+                return true; // 找到匹配的权限或通配符权限
+            }
+        }
+    }
+
+    return false; // 未找到匹配的权限
 }
 
 bool UserManagementService::checkOperatorPermission(int operatorId, const QString &operation) const
@@ -393,4 +479,79 @@ bool UserManagementService::updateUserStatus(int userId, const QString &newStatu
     }
 
     return result;
+}
+
+bool UserManagementService::exportUsersToCsv(const QList<User> &users, const QString &filePath) const
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return false;
+    }
+
+    QTextStream out(&file);
+    out.setCodec("UTF-8");
+
+    // 写入 CSV 头部
+    out << "id,username,email,first_name,last_name,phone,department_id,status,created_at,updated_at\n";
+
+    // 写入用户数据
+    for (const User &user : users) {
+        out << user.getId() << ","
+            << escapeCsvField(user.getUsername()) << ","
+            << escapeCsvField(user.getEmail()) << ","
+            << escapeCsvField(user.getFirstName()) << ","
+            << escapeCsvField(user.getLastName()) << ","
+            << escapeCsvField(user.getPhone()) << ","
+            << user.getDepartmentId() << ","
+            << escapeCsvField(user.getStatus()) << ","
+            << escapeCsvField(user.getCreateTime().toString(Qt::ISODate)) << ","
+            << escapeCsvField(user.getUpdateTime().toString(Qt::ISODate)) << "\n";
+    }
+
+    file.close();
+    return true;
+}
+
+bool UserManagementService::exportUsersToJson(const QList<User> &users, const QString &filePath) const
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+
+    QJsonArray jsonArray;
+
+    for (const User &user : users) {
+        QJsonObject userObj;
+        userObj["id"] = user.getId();
+        userObj["username"] = user.getUsername();
+        userObj["email"] = user.getEmail();
+        userObj["first_name"] = user.getFirstName();
+        userObj["last_name"] = user.getLastName();
+        userObj["phone"] = user.getPhone();
+        userObj["department_id"] = user.getDepartmentId();
+        userObj["status"] = user.getStatus();
+        userObj["created_at"] = user.getCreateTime().toString(Qt::ISODate);
+        userObj["updated_at"] = user.getUpdateTime().toString(Qt::ISODate);
+
+        // 获取用户角色列表
+        QJsonArray rolesArray;
+        QList<Role> userRoles = getUserRoles(user.getId());
+        for (const Role &role : userRoles) {
+            QJsonObject roleObj;
+            roleObj["id"] = role.getId();
+            roleObj["name"] = role.getName();
+            roleObj["description"] = role.getDescription();
+            rolesArray.append(roleObj);
+        }
+        userObj["roles"] = rolesArray;
+
+        jsonArray.append(userObj);
+    }
+
+    QJsonDocument doc(jsonArray);
+    file.write(doc.toJson(QJsonDocument::Indented));
+    file.close();
+
+    return true;
 }

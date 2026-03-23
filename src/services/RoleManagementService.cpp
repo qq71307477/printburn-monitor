@@ -238,7 +238,16 @@ bool RoleManagementService::addUserToRole(int userId, int roleId, int operatorId
         return false; // 用户不存在
     }
 
-    // 实际的角色分配将在Repository层面处理
+    // 检查用户是否已拥有该角色
+    if (userRepo.hasRole(userId, roleId)) {
+        return true; // 已拥有该角色，视为成功
+    }
+
+    // 添加用户-角色关联到数据库
+    if (!userRepo.addUserRole(userId, roleId)) {
+        return false;
+    }
+
     // 记录操作日志
     logRoleOperation(roleId, operatorId, "ADD_USER_TO_ROLE",
                     QString("Added user '%1' to role '%2'").arg(user.getUsername()).arg(role.getName()));
@@ -265,7 +274,16 @@ bool RoleManagementService::removeUserFromRole(int userId, int roleId, int opera
         return false; // 用户不存在
     }
 
-    // 实际的用户角色移除将在Repository层面处理
+    // 检查用户是否拥有该角色
+    if (!userRepo.hasRole(userId, roleId)) {
+        return true; // 用户没有该角色，视为成功
+    }
+
+    // 从数据库移除用户-角色关联
+    if (!userRepo.removeUserRole(userId, roleId)) {
+        return false;
+    }
+
     // 记录操作日志
     logRoleOperation(roleId, operatorId, "REMOVE_USER_FROM_ROLE",
                     QString("Removed user '%1' from role '%2'").arg(user.getUsername()).arg(role.getName()));

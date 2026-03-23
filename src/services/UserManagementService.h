@@ -52,6 +52,13 @@ private:
 
     // 记录用户管理操作日志
     bool logUserOperation(int userId, int operatorId, const QString &operation, const QString &details = "") const;
+
+    // 更新用户状态（内部方法）
+    bool updateUserStatus(int userId, const QString &newStatus, int operatorId);
+
+    // 用户导出辅助方法
+    bool exportUsersToCsv(const QList<User> &users, const QString &filePath) const;
+    bool exportUsersToJson(const QList<User> &users, const QString &filePath) const;
 };
 
 #endif // USERMANAGEMENTSERVICE_H

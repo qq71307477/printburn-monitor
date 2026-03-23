@@ -1,7 +1,7 @@
 #ifndef TASK_REPOSITORY_H
 #define TASK_REPOSITORY_H
 
-#include "models/task_model.h"
+#include "task_model.h"
 #include "database_manager.h"
 #include <QSqlQuery>
 #include <QSqlError>

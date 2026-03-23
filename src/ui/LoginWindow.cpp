@@ -1,4 +1,5 @@
 #include "LoginWindow.h"
+#include "../services/AuthService.h"
 #include <QVBoxLayout>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -96,11 +97,12 @@ void LoginWindow::attemptLogin()
         return;
     }
 
-    // 这里应该是实际的认证逻辑，暂时简化处理
-    // 在真实环境中，应该调用认证插件进行验证
-    if (username == "admin" && password == "admin123") {  // 示例凭据
+    // 使用 AuthService 进行数据库验证
+    if (AuthService::getInstance().authenticate(username, password)) {
+        User user = AuthService::getInstance().getCurrentUser();
+        QString role = QString("角色%1").arg(user.getRoleId());
         saveCredentialsIfNeeded();
-        emit loginSuccessful(username, "管理员");
+        emit loginSuccessful(username, role);
         accept();
     } else {
         m_errorLabel->setText("用户名或密码错误");

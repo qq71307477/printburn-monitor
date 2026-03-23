@@ -9,6 +9,8 @@ RoleRepository::RoleRepository() : db_manager_(default_db_manager_) {}
 RoleRepository::RoleRepository(DatabaseManager* db_manager) : db_manager_(db_manager) {}
 
 bool RoleRepository::create_table() {
+    if (!db_manager_) return false;
+
     QString sql = R"(
         CREATE TABLE IF NOT EXISTS roles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -16,6 +18,7 @@ bool RoleRepository::create_table() {
             description TEXT,
             permissions TEXT,
             is_active BOOLEAN DEFAULT 1,
+            is_system BOOLEAN DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
@@ -31,7 +34,7 @@ Role RoleRepository::findById(int id) {
     if (!db_manager_) return role;
 
     QSqlQuery query(db_manager_->get_connection());
-    query.prepare("SELECT id, name, description, permissions, is_active FROM roles WHERE id = ?");
+    query.prepare("SELECT id, name, description, permissions, is_active, is_system FROM roles WHERE id = ?");
     query.addBindValue(id);
 
     if (query.exec() && query.next()) {
@@ -40,6 +43,7 @@ Role RoleRepository::findById(int id) {
         role.description = query.value(2).toString().toStdString();
         role.permissions = query.value(3).toString().toStdString();
         role.is_active = query.value(4).toBool();
+        role.is_system = query.value(5).toBool();
     }
     return role;
 }
@@ -50,7 +54,7 @@ QList<Role> RoleRepository::findByUserId(int userId) {
 
     // Query roles assigned to a user through user_roles junction table
     QSqlQuery query(db_manager_->get_connection());
-    query.prepare("SELECT r.id, r.name, r.description, r.permissions, r.is_active "
+    query.prepare("SELECT r.id, r.name, r.description, r.permissions, r.is_active, r.is_system "
                   "FROM roles r "
                   "INNER JOIN user_roles ur ON r.id = ur.role_id "
                   "WHERE ur.user_id = ?");
@@ -64,6 +68,7 @@ QList<Role> RoleRepository::findByUserId(int userId) {
             role.description = query.value(2).toString().toStdString();
             role.permissions = query.value(3).toString().toStdString();
             role.is_active = query.value(4).toBool();
+            role.is_system = query.value(5).toBool();
             roles.append(role);
         }
     }
@@ -76,7 +81,7 @@ QList<Role> RoleRepository::findAll() {
 
     QSqlQuery query(db_manager_->get_connection());
 
-    if (query.exec("SELECT id, name, description, permissions, is_active FROM roles")) {
+    if (query.exec("SELECT id, name, description, permissions, is_active, is_system FROM roles")) {
         while (query.next()) {
             Role role;
             role.id = query.value(0).toInt();
@@ -84,6 +89,7 @@ QList<Role> RoleRepository::findAll() {
             role.description = query.value(2).toString().toStdString();
             role.permissions = query.value(3).toString().toStdString();
             role.is_active = query.value(4).toBool();
+            role.is_system = query.value(5).toBool();
             roles.append(role);
         }
     }
@@ -95,7 +101,7 @@ Role RoleRepository::findByName(const QString& name) {
     if (!db_manager_) return role;
 
     QSqlQuery query(db_manager_->get_connection());
-    query.prepare("SELECT id, name, description, permissions, is_active FROM roles WHERE name = ?");
+    query.prepare("SELECT id, name, description, permissions, is_active, is_system FROM roles WHERE name = ?");
     query.addBindValue(name);
 
     if (query.exec() && query.next()) {
@@ -104,6 +110,7 @@ Role RoleRepository::findByName(const QString& name) {
         role.description = query.value(2).toString().toStdString();
         role.permissions = query.value(3).toString().toStdString();
         role.is_active = query.value(4).toBool();
+        role.is_system = query.value(5).toBool();
     }
     return role;
 }
@@ -113,7 +120,7 @@ QList<Role> RoleRepository::search(const QString& keyword) {
     if (!db_manager_) return roles;
 
     QSqlQuery query(db_manager_->get_connection());
-    query.prepare("SELECT id, name, description, permissions, is_active FROM roles "
+    query.prepare("SELECT id, name, description, permissions, is_active, is_system FROM roles "
                   "WHERE name LIKE ? OR description LIKE ?");
     QString pattern = "%" + keyword + "%";
     query.addBindValue(pattern);
@@ -127,6 +134,7 @@ QList<Role> RoleRepository::search(const QString& keyword) {
             role.description = query.value(2).toString().toStdString();
             role.permissions = query.value(3).toString().toStdString();
             role.is_active = query.value(4).toBool();
+            role.is_system = query.value(5).toBool();
             roles.append(role);
         }
     }
@@ -142,7 +150,7 @@ std::unique_ptr<Role> RoleRepository::find_by_id(int id) {
     if (!db_manager_) return nullptr;
 
     QSqlQuery query(db_manager_->get_connection());
-    query.prepare("SELECT id, name, description, permissions, is_active FROM roles WHERE id = ?");
+    query.prepare("SELECT id, name, description, permissions, is_active, is_system FROM roles WHERE id = ?");
     query.addBindValue(id);
 
     if (query.exec() && query.next()) {
@@ -152,6 +160,7 @@ std::unique_ptr<Role> RoleRepository::find_by_id(int id) {
         role->description = query.value(2).toString().toStdString();
         role->permissions = query.value(3).toString().toStdString();
         role->is_active = query.value(4).toBool();
+        role->is_system = query.value(5).toBool();
         return role;
     }
     return nullptr;
@@ -163,7 +172,7 @@ std::vector<std::unique_ptr<Role>> RoleRepository::find_all() {
 
     QSqlQuery query(db_manager_->get_connection());
 
-    if (query.exec("SELECT id, name, description, permissions, is_active FROM roles")) {
+    if (query.exec("SELECT id, name, description, permissions, is_active, is_system FROM roles")) {
         while (query.next()) {
             auto role = std::make_unique<Role>();
             role->id = query.value(0).toInt();
@@ -171,6 +180,7 @@ std::vector<std::unique_ptr<Role>> RoleRepository::find_all() {
             role->description = query.value(2).toString().toStdString();
             role->permissions = query.value(3).toString().toStdString();
             role->is_active = query.value(4).toBool();
+            role->is_system = query.value(5).toBool();
             roles.push_back(std::move(role));
         }
     }
@@ -181,7 +191,7 @@ std::unique_ptr<Role> RoleRepository::find_by_name(const std::string& name) {
     if (!db_manager_) return nullptr;
 
     QSqlQuery query(db_manager_->get_connection());
-    query.prepare("SELECT id, name, description, permissions, is_active FROM roles WHERE name = ?");
+    query.prepare("SELECT id, name, description, permissions, is_active, is_system FROM roles WHERE name = ?");
     query.addBindValue(QString::fromStdString(name));
 
     if (query.exec() && query.next()) {
@@ -191,6 +201,7 @@ std::unique_ptr<Role> RoleRepository::find_by_name(const std::string& name) {
         role->description = query.value(2).toString().toStdString();
         role->permissions = query.value(3).toString().toStdString();
         role->is_active = query.value(4).toBool();
+        role->is_system = query.value(5).toBool();
         return role;
     }
     return nullptr;
@@ -200,11 +211,12 @@ bool RoleRepository::create(Role& role) {
     if (!db_manager_) return false;
 
     QSqlQuery query(db_manager_->get_connection());
-    query.prepare("INSERT INTO roles (name, description, permissions, is_active) VALUES (?, ?, ?, ?)");
+    query.prepare("INSERT INTO roles (name, description, permissions, is_active, is_system) VALUES (?, ?, ?, ?, ?)");
     query.addBindValue(QString::fromStdString(role.name));
     query.addBindValue(QString::fromStdString(role.description));
     query.addBindValue(QString::fromStdString(role.permissions));
     query.addBindValue(role.is_active);
+    query.addBindValue(role.is_system);
 
     if (query.exec()) {
         role.id = query.lastInsertId().toInt();
@@ -217,12 +229,13 @@ bool RoleRepository::update(const Role& role) {
     if (!db_manager_) return false;
 
     QSqlQuery query(db_manager_->get_connection());
-    query.prepare("UPDATE roles SET name = ?, description = ?, permissions = ?, is_active = ?, "
+    query.prepare("UPDATE roles SET name = ?, description = ?, permissions = ?, is_active = ?, is_system = ?, "
                   "updated_at = CURRENT_TIMESTAMP WHERE id = ?");
     query.addBindValue(QString::fromStdString(role.name));
     query.addBindValue(QString::fromStdString(role.description));
     query.addBindValue(QString::fromStdString(role.permissions));
     query.addBindValue(role.is_active);
+    query.addBindValue(role.is_system);
     query.addBindValue(role.id);
 
     return query.exec();

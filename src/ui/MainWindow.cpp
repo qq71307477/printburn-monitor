@@ -138,10 +138,7 @@ void MainWindow::setupContentArea()
     m_contentStack = new QStackedWidget();
 
     // 创建各个界面
-    QLabel *homePage = new QLabel("欢迎使用打印刻录安全监控系统\n请选择左侧菜单项以继续操作");
-    homePage->setAlignment(Qt::AlignCenter);
-    homePage->setStyleSheet("font-size: 16px; padding: 50px;");
-    m_contentStack->addWidget(homePage);
+    m_contentStack->addWidget(new PersonalHomePage(this));
 
     // 添加其他界面
     m_contentStack->addWidget(new PrintApplicationPage(this));

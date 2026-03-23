@@ -9,6 +9,8 @@ UserRepository::UserRepository() : db_manager_(default_db_manager_) {}
 UserRepository::UserRepository(DatabaseManager* db_manager) : db_manager_(db_manager) {}
 
 bool UserRepository::create_table() {
+    if (!db_manager_) return false;
+
     QString sql = R"(
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -251,6 +253,47 @@ QList<User> UserRepository::findByRoleId(int roleId) {
         }
     }
     return users;
+}
+
+bool UserRepository::addUserRole(int userId, int roleId) {
+    if (!db_manager_) return false;
+
+    // Check if the relationship already exists
+    if (hasRole(userId, roleId)) {
+        return true; // Already exists, consider it success
+    }
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)");
+    query.addBindValue(userId);
+    query.addBindValue(roleId);
+
+    return query.exec();
+}
+
+bool UserRepository::removeUserRole(int userId, int roleId) {
+    if (!db_manager_) return false;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("DELETE FROM user_roles WHERE user_id = ? AND role_id = ?");
+    query.addBindValue(userId);
+    query.addBindValue(roleId);
+
+    return query.exec();
+}
+
+bool UserRepository::hasRole(int userId, int roleId) {
+    if (!db_manager_) return false;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT COUNT(*) FROM user_roles WHERE user_id = ? AND role_id = ?");
+    query.addBindValue(userId);
+    query.addBindValue(roleId);
+
+    if (query.exec() && query.next()) {
+        return query.value(0).toInt() > 0;
+    }
+    return false;
 }
 
 // Legacy snake_case methods for backward compatibility

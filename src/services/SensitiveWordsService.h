@@ -36,6 +36,9 @@ private:
     SensitiveWordsService();  // 私有构造函数，确保单例
     ~SensitiveWordsService();
 
+    // 确保敏感词表存在
+    bool ensureSensitiveWordsTableExists() const;
+
     // 从数据库或其他存储加载敏感词列表
     void loadSensitiveWords();
 

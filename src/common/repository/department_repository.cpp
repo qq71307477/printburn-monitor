@@ -4,6 +4,8 @@
 DepartmentRepository::DepartmentRepository(DatabaseManager* db_manager) : db_manager_(db_manager) {}
 
 bool DepartmentRepository::create_table() {
+    if (!db_manager_) return false;
+
     QString sql = R"(
         CREATE TABLE IF NOT EXISTS departments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,6 +23,8 @@ bool DepartmentRepository::create_table() {
 }
 
 std::unique_ptr<Department> DepartmentRepository::find_by_id(int id) {
+    if (!db_manager_) return nullptr;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("SELECT id, name, description, manager_id, parent_department_id, is_active FROM departments WHERE id = ?");
     query.addBindValue(id);
@@ -40,6 +44,8 @@ std::unique_ptr<Department> DepartmentRepository::find_by_id(int id) {
 
 std::vector<std::unique_ptr<Department>> DepartmentRepository::find_all() {
     std::vector<std::unique_ptr<Department>> departments;
+    if (!db_manager_) return departments;
+
     QSqlQuery query(db_manager_->get_connection());
 
     if (query.exec("SELECT id, name, description, manager_id, parent_department_id, is_active FROM departments")) {
@@ -58,6 +64,8 @@ std::vector<std::unique_ptr<Department>> DepartmentRepository::find_all() {
 }
 
 bool DepartmentRepository::create(Department& department) {
+    if (!db_manager_) return false;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("INSERT INTO departments (name, description, manager_id, parent_department_id, is_active) VALUES (?, ?, ?, ?, ?)");
     query.addBindValue(QString::fromStdString(department.name));
@@ -74,6 +82,8 @@ bool DepartmentRepository::create(Department& department) {
 }
 
 bool DepartmentRepository::update(const Department& department) {
+    if (!db_manager_) return false;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("UPDATE departments SET name = ?, description = ?, manager_id = ?, parent_department_id = ?, is_active = ? WHERE id = ?");
     query.addBindValue(QString::fromStdString(department.name));
@@ -86,6 +96,8 @@ bool DepartmentRepository::update(const Department& department) {
 }
 
 bool DepartmentRepository::remove(int id) {
+    if (!db_manager_) return false;
+
     QSqlQuery query(db_manager_->get_connection());
     query.prepare("DELETE FROM departments WHERE id = ?");
     query.addBindValue(id);

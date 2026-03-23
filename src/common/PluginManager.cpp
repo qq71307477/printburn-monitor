@@ -14,7 +14,6 @@ PluginManager::~PluginManager() {
     for (auto it = m_plugins.begin(); it != m_plugins.end(); ++it) {
         PluginData &data = it.value();
         if (data.instance) {
-            data.instance->cleanup();
             delete data.instance;
             data.instance = nullptr;
         }
@@ -76,6 +75,7 @@ bool PluginManager::loadPlugin(const QString &pluginPath) {
     data.instance = pluginInstance;
     data.library = library;
     data.path = pluginPath;
+    data.initialized = true;
 
     m_plugins.insert(pluginName, data);
 
@@ -133,9 +133,13 @@ bool PluginManager::initializeAllPlugins() {
     bool allSuccess = true;
     for (auto it = m_plugins.begin(); it != m_plugins.end(); ++it) {
         PluginData &data = it.value();
-        if (data.instance && !data.instance->initialize()) {
-            qDebug() << "Failed to initialize plugin:" << it.key();
-            allSuccess = false;
+        if (data.instance && !data.initialized) {
+            if (!data.instance->initialize()) {
+                qDebug() << "Failed to initialize plugin:" << it.key();
+                allSuccess = false;
+            } else {
+                data.initialized = true;
+            }
         }
     }
     return allSuccess;
