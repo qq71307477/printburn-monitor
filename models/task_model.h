@@ -8,7 +8,7 @@
 
 class Task {
 public:
-    Task() : id(0), user_id(0), copies(0), approver_id(0) {}
+    Task() : id(0), user_id(0), copies(0), approver_id(0), due_date(0), created_at(0), updated_at(0), completed_at(0), approval_time(0) {}
 
     // Getters
     int getId() const { return id; }
