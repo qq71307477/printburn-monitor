@@ -32,7 +32,9 @@ bool DeviceManagementService::addDevice(const Device &device)
         return false; // 设备编号已存在
     }
 
-    return deviceRepo.create(device);
+    // 创建副本以传递给 create 方法
+    Device newDevice = device;
+    return deviceRepo.create(newDevice);
 }
 
 bool DeviceManagementService::updateDevice(const Device &device)
