@@ -393,3 +393,153 @@ std::vector<std::unique_ptr<Task>> TaskRepository::find_by_priority(const std::s
     }
     return tasks;
 }
+
+Task TaskRepository::findById(int id) {
+    Task task;
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, title, description, assigned_user_id, created_by_user_id, device_id, "
+                  "status, priority, due_date, completed_at FROM tasks WHERE id = ?");
+    query.addBindValue(id);
+
+    if (query.exec() && query.next()) {
+        task.id = query.value(0).toInt();
+        task.title = query.value(1).toString().toStdString();
+        task.description = query.value(2).toString().toStdString();
+        task.assigned_user_id = query.value(3).toInt();
+        task.created_by_user_id = query.value(4).toInt();
+        task.device_id = query.value(5).toInt();
+        task.status = query.value(6).toString().toStdString();
+        task.priority = query.value(7).toString().toStdString();
+
+        QString due_date_str = query.value(8).toString();
+        if (!due_date_str.isEmpty()) {
+            QDateTime due_date = QDateTime::fromString(due_date_str, "yyyy-MM-dd hh:mm:ss");
+            if (!due_date.isValid()) {
+                due_date = QDateTime::fromString(due_date_str, Qt::ISODate);
+            }
+            task.due_date = due_date.toSecsSinceEpoch();
+        }
+
+        QString completed_at_str = query.value(9).toString();
+        if (!completed_at_str.isEmpty()) {
+            QDateTime completed_at = QDateTime::fromString(completed_at_str, "yyyy-MM-dd hh:mm:ss");
+            if (!completed_at.isValid()) {
+                completed_at = QDateTime::fromString(completed_at_str, Qt::ISODate);
+            }
+            task.completed_at = completed_at.toSecsSinceEpoch();
+        }
+    }
+    return task;
+}
+
+QList<Task> TaskRepository::findByUserId(int userId, const QString& taskType, const QString& status, int limit, int offset) {
+    QList<Task> tasks;
+    QSqlQuery query(db_manager_->get_connection());
+
+    QString sql = "SELECT id, title, description, assigned_user_id, created_by_user_id, device_id, "
+                  "status, priority, due_date, completed_at FROM tasks WHERE (assigned_user_id = ? OR created_by_user_id = ?)";
+
+    if (!status.isEmpty()) {
+        sql += " AND status = ?";
+    }
+    if (!taskType.isEmpty()) {
+        sql += " AND priority = ?";
+    }
+    if (limit > 0) {
+        sql += QString(" LIMIT %1").arg(limit);
+        if (offset > 0) {
+            sql += QString(" OFFSET %1").arg(offset);
+        }
+    }
+
+    query.prepare(sql);
+    query.addBindValue(userId);
+    query.addBindValue(userId);
+
+    if (!status.isEmpty()) {
+        query.addBindValue(status);
+    }
+    if (!taskType.isEmpty()) {
+        query.addBindValue(taskType);
+    }
+
+    if (query.exec()) {
+        while (query.next()) {
+            Task task;
+            task.id = query.value(0).toInt();
+            task.title = query.value(1).toString().toStdString();
+            task.description = query.value(2).toString().toStdString();
+            task.assigned_user_id = query.value(3).toInt();
+            task.created_by_user_id = query.value(4).toInt();
+            task.device_id = query.value(5).toInt();
+            task.status = query.value(6).toString().toStdString();
+            task.priority = query.value(7).toString().toStdString();
+
+            QString due_date_str = query.value(8).toString();
+            if (!due_date_str.isEmpty()) {
+                QDateTime due_date = QDateTime::fromString(due_date_str, "yyyy-MM-dd hh:mm:ss");
+                if (!due_date.isValid()) {
+                    due_date = QDateTime::fromString(due_date_str, Qt::ISODate);
+                }
+                task.due_date = due_date.toSecsSinceEpoch();
+            }
+
+            QString completed_at_str = query.value(9).toString();
+            if (!completed_at_str.isEmpty()) {
+                QDateTime completed_at = QDateTime::fromString(completed_at_str, "yyyy-MM-dd hh:mm:ss");
+                if (!completed_at.isValid()) {
+                    completed_at = QDateTime::fromString(completed_at_str, Qt::ISODate);
+                }
+                task.completed_at = completed_at.toSecsSinceEpoch();
+            }
+            tasks.append(task);
+        }
+    }
+    return tasks;
+}
+
+QList<Task> TaskRepository::findPendingApprovalTasks(const QString& approverRole) {
+    QList<Task> tasks;
+    QSqlQuery query(db_manager_->get_connection());
+
+    // Find tasks that are pending approval based on approver role
+    // This assumes there's a workflow or approval mechanism
+    QString sql = "SELECT id, title, description, assigned_user_id, created_by_user_id, device_id, "
+                  "status, priority, due_date, completed_at FROM tasks WHERE status = 'pending_approval'";
+
+    query.prepare(sql);
+
+    if (query.exec()) {
+        while (query.next()) {
+            Task task;
+            task.id = query.value(0).toInt();
+            task.title = query.value(1).toString().toStdString();
+            task.description = query.value(2).toString().toStdString();
+            task.assigned_user_id = query.value(3).toInt();
+            task.created_by_user_id = query.value(4).toInt();
+            task.device_id = query.value(5).toInt();
+            task.status = query.value(6).toString().toStdString();
+            task.priority = query.value(7).toString().toStdString();
+
+            QString due_date_str = query.value(8).toString();
+            if (!due_date_str.isEmpty()) {
+                QDateTime due_date = QDateTime::fromString(due_date_str, "yyyy-MM-dd hh:mm:ss");
+                if (!due_date.isValid()) {
+                    due_date = QDateTime::fromString(due_date_str, Qt::ISODate);
+                }
+                task.due_date = due_date.toSecsSinceEpoch();
+            }
+
+            QString completed_at_str = query.value(9).toString();
+            if (!completed_at_str.isEmpty()) {
+                QDateTime completed_at = QDateTime::fromString(completed_at_str, "yyyy-MM-dd hh:mm:ss");
+                if (!completed_at.isValid()) {
+                    completed_at = QDateTime::fromString(completed_at_str, Qt::ISODate);
+                }
+                task.completed_at = completed_at.toSecsSinceEpoch();
+            }
+            tasks.append(task);
+        }
+    }
+    return tasks;
+}

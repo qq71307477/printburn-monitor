@@ -8,7 +8,7 @@
 
 class Role {
 public:
-    Role() : id(0), is_active(true) {}
+    Role() : id(0), is_active(true), created_at(0), updated_at(0) {}
 
     // Getters
     int getId() const { return id; }

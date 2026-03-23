@@ -31,6 +31,7 @@ public:
     bool update(const User& user);
     QList<User> search(const QString& keyword);
     QList<User> findByDepartmentId(int department_id);
+    QList<User> findByRoleId(int roleId);
 
     // Legacy snake_case methods for backward compatibility
     std::unique_ptr<User> find_by_id(int id);

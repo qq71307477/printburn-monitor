@@ -23,8 +23,11 @@ public:
 
     // Qt-style methods for services
     Role findById(int id);
+    Role findByName(const QString& name);
     QList<Role> findByUserId(int userId);
     QList<Role> findAll();
+    QList<Role> search(const QString& keyword);
+    bool deleteById(int id);
 
     // Legacy snake_case methods for backward compatibility
     std::unique_ptr<Role> find_by_id(int id);

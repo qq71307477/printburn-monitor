@@ -14,7 +14,7 @@ struct Department {
     std::time_t created_at;
     std::time_t updated_at;
 
-    Department() : id(0), manager_id(0), parent_department_id(0), is_active(true) {}
+    Department() : id(0), manager_id(0), parent_department_id(0), is_active(true), created_at(0), updated_at(0) {}
 };
 
 #endif // DEPARTMENT_MODEL_H

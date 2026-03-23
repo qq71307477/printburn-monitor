@@ -89,6 +89,53 @@ QList<Role> RoleRepository::findAll() {
     return roles;
 }
 
+Role RoleRepository::findByName(const QString& name) {
+    Role role;
+    if (!db_manager_) return role;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, name, description, permissions, is_active FROM roles WHERE name = ?");
+    query.addBindValue(name);
+
+    if (query.exec() && query.next()) {
+        role.id = query.value(0).toInt();
+        role.name = query.value(1).toString().toStdString();
+        role.description = query.value(2).toString().toStdString();
+        role.permissions = query.value(3).toString().toStdString();
+        role.is_active = query.value(4).toBool();
+    }
+    return role;
+}
+
+QList<Role> RoleRepository::search(const QString& keyword) {
+    QList<Role> roles;
+    if (!db_manager_) return roles;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, name, description, permissions, is_active FROM roles "
+                  "WHERE name LIKE ? OR description LIKE ?");
+    QString pattern = "%" + keyword + "%";
+    query.addBindValue(pattern);
+    query.addBindValue(pattern);
+
+    if (query.exec()) {
+        while (query.next()) {
+            Role role;
+            role.id = query.value(0).toInt();
+            role.name = query.value(1).toString().toStdString();
+            role.description = query.value(2).toString().toStdString();
+            role.permissions = query.value(3).toString().toStdString();
+            role.is_active = query.value(4).toBool();
+            roles.append(role);
+        }
+    }
+    return roles;
+}
+
+bool RoleRepository::deleteById(int id) {
+    return remove(id);
+}
+
 // Legacy snake_case methods for backward compatibility
 std::unique_ptr<Role> RoleRepository::find_by_id(int id) {
     if (!db_manager_) return nullptr;

@@ -5,6 +5,7 @@
 #include "database_manager.h"
 #include <QSqlQuery>
 #include <QSqlError>
+#include <QList>
 #include <vector>
 #include <memory>
 
@@ -28,6 +29,11 @@ public:
     std::vector<std::unique_ptr<Task>> find_by_device(int device_id);
     std::vector<std::unique_ptr<Task>> find_by_status(const std::string& status);
     std::vector<std::unique_ptr<Task>> find_by_priority(const std::string& priority);
+
+    // Qt-style methods
+    Task findById(int id);
+    QList<Task> findByUserId(int userId, const QString& taskType = QString(), const QString& status = QString(), int limit = 0, int offset = 0);
+    QList<Task> findPendingApprovalTasks(const QString& approverRole);
 };
 
 #endif // TASK_REPOSITORY_H

@@ -224,6 +224,34 @@ QList<User> UserRepository::findByDepartmentId(int department_id) {
     return users;
 }
 
+QList<User> UserRepository::findByRoleId(int roleId) {
+    QList<User> users;
+    if (!db_manager_) return users;
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare("SELECT id, username, password_hash, email, role_id, department_id, "
+                  "first_name, last_name, phone, is_active FROM users WHERE role_id = ?");
+    query.addBindValue(roleId);
+
+    if (query.exec()) {
+        while (query.next()) {
+            User user;
+            user.id = query.value(0).toInt();
+            user.username = query.value(1).toString().toStdString();
+            user.password_hash = query.value(2).toString().toStdString();
+            user.email = query.value(3).toString().toStdString();
+            user.role_id = query.value(4).toInt();
+            user.department_id = query.value(5).toInt();
+            user.first_name = query.value(6).toString().toStdString();
+            user.last_name = query.value(7).toString().toStdString();
+            user.phone = query.value(8).toString().toStdString();
+            user.is_active = query.value(9).toBool();
+            users.append(user);
+        }
+    }
+    return users;
+}
+
 // Legacy snake_case methods for backward compatibility
 std::unique_ptr<User> UserRepository::find_by_id(int id) {
     if (!db_manager_) return nullptr;
