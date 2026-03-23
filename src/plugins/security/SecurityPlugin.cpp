@@ -1,5 +1,6 @@
 #include "SecurityPlugin.h"
 #include <QDebug>
+#include <QDateTime>
 
 SecurityPlugin::SecurityPlugin() : m_initialized(false) {
 }
