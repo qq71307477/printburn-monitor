@@ -22,7 +22,6 @@ include_directories(${CMAKE_SOURCE_DIR}/models)
 # 定义源文件
 set(SOURCES
     src/main/main.cpp
-    src/common/IPlugin.h
     src/ui/MainWindow.h
     src/ui/MainWindow.cpp
     src/ui/LoginWindow.h
