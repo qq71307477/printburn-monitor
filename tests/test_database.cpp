@@ -2,12 +2,12 @@
 #include <cassert>
 #include <vector>
 #include <memory>
-#include "../src/common/repository/database_manager.h"
-#include "../src/common/repository/user_repository.h"
-#include "../src/common/repository/role_repository.h"
-#include "../src/common/repository/department_repository.h"
-#include "../src/common/repository/device_repository.h"
-#include "../src/common/repository/task_repository.h"
+#include "src/common/repository/database_manager.h"
+#include "src/common/repository/user_repository.h"
+#include "src/common/repository/role_repository.h"
+#include "src/common/repository/department_repository.h"
+#include "src/common/repository/device_repository.h"
+#include "src/common/repository/task_repository.h"
 
 void test_database_initialization() {
     std::cout << "Testing database initialization...\n";

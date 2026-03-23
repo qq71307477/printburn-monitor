@@ -1,6 +1,6 @@
 #include "UserManagementService.h"
-#include "../src/common/repository/UserRepository.h"
-#include "../src/common/repository/RoleRepository.h"
+#include "src/common/repository/user_repository.h"
+#include "src/common/repository/role_repository.h"
 #include <QDateTime>
 #include <QCryptographicHash>
 

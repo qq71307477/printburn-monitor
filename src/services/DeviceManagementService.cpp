@@ -1,6 +1,6 @@
 #include "DeviceManagementService.h"
-#include "../src/common/repository/DeviceRepository.h"
-#include "../src/common/repository/UserRepository.h"
+#include "src/common/repository/device_repository.h"
+#include "src/common/repository/user_repository.h"
 #include <QDateTime>
 
 // 静态实例

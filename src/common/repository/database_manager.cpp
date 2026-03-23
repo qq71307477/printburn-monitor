@@ -1,17 +1,26 @@
 #include "database_manager.h"
-#include <iostream>
+#include <QSqlQuery>
+#include <QSqlError>
+#include <QDebug>
+#include <QFile>
 
-DatabaseManager::DatabaseManager(const std::string& db_path)
-    : db_(nullptr, sqlite3_close) {
-    int rc = sqlite3_open(db_path.c_str(), &db_);
-    if (rc != SQLITE_OK) {
-        throw std::runtime_error("Cannot open database: " + std::string(sqlite3_errmsg(db_.get())));
+DatabaseManager::DatabaseManager(const QString& db_path) {
+    db_ = QSqlDatabase::addDatabase("QSQLITE");
+    db_.setDatabaseName(db_path);
+
+    if (!db_.open()) {
+        qCritical() << "Cannot open database:" << db_.lastError().text();
+    }
+}
+
+DatabaseManager::~DatabaseManager() {
+    if (db_.isOpen()) {
+        db_.close();
     }
 }
 
 bool DatabaseManager::initialize() {
-    // Load and execute initialization script
-    const char* init_sql = R"(
+    QString init_sql = R"(
         PRAGMA foreign_keys = ON;
 
         CREATE TABLE IF NOT EXISTS roles (
@@ -104,38 +113,26 @@ bool DatabaseManager::initialize() {
         CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
     )";
 
-    int rc = sqlite3_exec(db_.get(), init_sql, nullptr, nullptr, nullptr);
-    if (rc != SQLITE_OK) {
-        std::cerr << "SQL error: " << sqlite3_errmsg(db_.get()) << std::endl;
-        return false;
-    }
-
-    return true;
+    return execute_query(init_sql);
 }
 
-bool DatabaseManager::execute_query(const std::string& sql) {
-    char* errMsg = nullptr;
-    int rc = sqlite3_exec(db_.get(), sql.c_str(), nullptr, nullptr, &errMsg);
-
-    if (rc != SQLITE_OK) {
-        if (errMsg != nullptr) {
-            std::cerr << "SQL error: " << errMsg << std::endl;
-            sqlite3_free(errMsg);
-        }
+bool DatabaseManager::execute_query(const QString& sql) {
+    QSqlQuery query(db_);
+    if (!query.exec(sql)) {
+        qCritical() << "SQL error:" << query.lastError().text();
         return false;
     }
-
     return true;
 }
 
 bool DatabaseManager::begin_transaction() {
-    return execute_query("BEGIN TRANSACTION;");
+    return db_.transaction();
 }
 
 bool DatabaseManager::commit_transaction() {
-    return execute_query("COMMIT;");
+    return db_.commit();
 }
 
 bool DatabaseManager::rollback_transaction() {
-    return execute_query("ROLLBACK;");
+    return db_.rollback();
 }

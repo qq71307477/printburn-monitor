@@ -4,8 +4,8 @@
 #include <QtTest>
 #include <QObject>
 #include "../src/services/AuthService.h"
-#include "../src/common/repository/UserRepository.h"
-#include "../models/user_model.h"
+#include "src/common/repository/UserRepository.h"
+#include "models/user_model.h"
 
 class TestAuthService : public QObject
 {

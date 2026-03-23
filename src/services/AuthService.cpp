@@ -1,6 +1,6 @@
 #include "AuthService.h"
-#include "../src/common/repository/UserRepository.h"
-#include "../models/user_model.h"
+#include "src/common/repository/user_repository.h"
+#include "models/user_model.h"
 #include <QCryptographicHash>
 #include <QRegularExpression>
 

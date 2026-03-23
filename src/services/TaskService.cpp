@@ -1,7 +1,7 @@
 #include "TaskService.h"
-#include "../src/common/repository/TaskRepository.h"
-#include "../src/common/repository/UserRepository.h"
-#include "../src/plugins/security/SecurityPlugin.h"
+#include "src/common/repository/task_repository.h"
+#include "src/common/repository/user_repository.h"
+#include "src/plugins/security/SecurityPlugin.h"
 #include <QDateTime>
 #include <QUuid>
 

@@ -1,23 +1,25 @@
 #ifndef DATABASE_MANAGER_H
 #define DATABASE_MANAGER_H
 
-#include <sqlite3.h>
-#include <string>
+#include <QSqlDatabase>
+#include <QSqlQuery>
+#include <QSqlError>
+#include <QString>
 #include <memory>
-#include <vector>
 
 class DatabaseManager {
 private:
-    std::unique_ptr<sqlite3, decltype(&sqlite3_close)> db_;
+    QSqlDatabase db_;
 
 public:
-    explicit DatabaseManager(const std::string& db_path);
+    explicit DatabaseManager(const QString& db_path);
+    ~DatabaseManager();
 
     bool initialize();
-    sqlite3* get_connection() const { return db_.get(); }
+    QSqlDatabase get_connection() const { return db_; }
 
     // Execute non-query statements (INSERT, UPDATE, DELETE)
-    bool execute_query(const std::string& sql);
+    bool execute_query(const QString& sql);
 
     // Begin transaction
     bool begin_transaction();
