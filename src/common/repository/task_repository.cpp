@@ -1,6 +1,11 @@
 #include "task_repository.h"
 #include <QDateTime>
 
+// Static member initialization
+DatabaseManager* TaskRepository::default_db_manager_ = nullptr;
+
+TaskRepository::TaskRepository() : db_manager_(default_db_manager_) {}
+
 TaskRepository::TaskRepository(DatabaseManager* db_manager) : db_manager_(db_manager) {}
 
 bool TaskRepository::create_table() {

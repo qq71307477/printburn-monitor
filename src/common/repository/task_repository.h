@@ -11,8 +11,10 @@
 class TaskRepository {
 private:
     DatabaseManager* db_manager_;
+    static DatabaseManager* default_db_manager_;
 
 public:
+    TaskRepository();
     explicit TaskRepository(DatabaseManager* db_manager);
 
     bool create_table();
