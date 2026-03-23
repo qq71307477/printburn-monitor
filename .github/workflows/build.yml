@@ -28,7 +28,6 @@ jobs:
       with:
         version: '6.5.3'
         arch: ${{ matrix.qt_arch }}
-        modules: 'qtbase'
 
     - name: Configure CMake
       run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
