@@ -317,6 +317,12 @@ void DeviceAuthorizationDialog::onCancelClicked()
     reject();
 }
 
+void DeviceAuthorizationDialog::onTabChanged(int index)
+{
+    Q_UNUSED(index)
+    // Tab changed - can be used to refresh data if needed
+}
+
 QList<int> DeviceAuthorizationDialog::getAuthorizedUserIds() const
 {
     return m_authorizedUserIds;
