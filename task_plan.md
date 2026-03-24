@@ -42,7 +42,7 @@ Phase 7
 - [x] 编写部署文档 - docs/DEPLOYMENT_GUIDE.md 已完成
 - [ ] 最终测试验证
   - [x] Linux 构建验证 ✅ (2026-03-24)
-  - [ ] Windows 构建验证（等待 CI）
+  - [x] Windows 构建验证 ✅ (2026-03-24, GitHub CI)
   - [ ] 功能回归测试
 - **Status:** in_progress
 
@@ -76,8 +76,8 @@ Phase 7
 
 | Platform | Status | Notes |
 |----------|--------|-------|
-| Linux (Alibaba Cloud Linux 3) | ✅ 成功 | Qt 5.15.3 |
-| Windows (GitHub CI) | ⏳ 待验证 | |
+| Linux (Ubuntu, GCC) | ✅ 成功 | Qt 5.15.3, 2m54s |
+| Windows (MSVC) | ✅ 成功 | Qt 5.12.12, 3m5s |
 | macOS | ❌ 不支持 | runner 配置问题 |
 
 ## Notes
