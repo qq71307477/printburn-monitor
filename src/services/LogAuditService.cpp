@@ -8,6 +8,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QCryptographicHash>
+#include <QDebug>
 #include <mutex>
 #include "qt_compat.h"
 
