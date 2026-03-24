@@ -6,22 +6,10 @@
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QList>
-#include <QCache>
 #include <vector>
 #include <memory>
 
 class TaskRepository;
-
-// 用户名缓存接口（仅声明，实现在 .cpp 中避免重定义）
-class UserNameCache {
-public:
-    static QString getUserName(int userId);
-    static void cacheUserName(int userId, const QString& username);
-    static void clear();
-    static void preloadUserNames();
-private:
-    UserNameCache() = delete;
-};
 
 class TaskRepository {
 private:
