@@ -244,7 +244,7 @@ void UserEditDialog::onSaveClicked()
             selectedRoleIds.append(m_rolesList->item(i)->data(Qt::UserRole).toInt());
         }
     }
-    m_user.setRole(selectedRoleIds.isEmpty() ? "普通用户" : "多角色");
+    m_user.setRoleId(selectedRoleIds.isEmpty() ? 0 : selectedRoleIds.first().toInt());
 
     accept();
 }

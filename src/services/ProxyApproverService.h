@@ -16,6 +16,7 @@ public:
     // Core operations as requested
     int setProxy(int ownerUserId, int proxyUserId, int securityLevelId, const QString& taskType, const QDate& startDate, const QDate& endDate);
     bool removeProxy(int proxyId);
+    bool deleteProxy(int proxyId) { return removeProxy(proxyId); }
     QList<ProxyApprover> getProxiesByOwner(int ownerUserId) const;
     QList<ProxyApprover> getProxiesByProxy(int proxyUserId) const;
     ProxyApprover getActiveProxyForTask(int ownerUserId, const QString& taskType, int securityLevelId) const;

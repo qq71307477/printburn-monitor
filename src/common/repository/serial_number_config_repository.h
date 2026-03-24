@@ -29,9 +29,9 @@ public:
     bool remove(int id);
 
     // Query Operations
-    SerialNumberConfig findById(int id);
-    SerialNumberConfig findByType(int configType);
-    QList<SerialNumberConfig> findAll();
+    SerialNumberConfig findById(int id) const;
+    SerialNumberConfig findByType(int configType) const;
+    QList<SerialNumberConfig> findAll() const;
 
     // Check if config exists for a type
     bool existsByType(int configType);

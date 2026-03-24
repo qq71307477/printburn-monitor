@@ -31,6 +31,7 @@ private slots:
 
 private:
     void setupUI();
+    void loadParentDepartments();
 
     Department m_dept;
     bool m_isEdit;

@@ -93,7 +93,7 @@ bool SerialNumberConfigRepository::remove(int id) {
     return query.exec();
 }
 
-SerialNumberConfig SerialNumberConfigRepository::findById(int id) {
+SerialNumberConfig SerialNumberConfigRepository::findById(int id) const {
     SerialNumberConfig config;
     if (!db_manager_) return config;
 
@@ -119,7 +119,7 @@ SerialNumberConfig SerialNumberConfigRepository::findById(int id) {
     return config;
 }
 
-SerialNumberConfig SerialNumberConfigRepository::findByType(int configType) {
+SerialNumberConfig SerialNumberConfigRepository::findByType(int configType) const {
     SerialNumberConfig config;
     if (!db_manager_) return config;
 
@@ -145,7 +145,7 @@ SerialNumberConfig SerialNumberConfigRepository::findByType(int configType) {
     return config;
 }
 
-QList<SerialNumberConfig> SerialNumberConfigRepository::findAll() {
+QList<SerialNumberConfig> SerialNumberConfigRepository::findAll() const {
     QList<SerialNumberConfig> configs;
     if (!db_manager_) return configs;
 

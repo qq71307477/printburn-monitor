@@ -276,7 +276,7 @@ QList<QPair<int, QString>> ProxyApproverService::getSecurityLevelsForSelection()
     QList<SecurityLevel> allLevels = levelRepo.findAll();
 
     for (const SecurityLevel& level : allLevels) {
-        levels.append(qMakePair(level.getId(), level.getName()));
+        levels.append(qMakePair(level.getId(), level.getLevelName()));
     }
 
     return levels;

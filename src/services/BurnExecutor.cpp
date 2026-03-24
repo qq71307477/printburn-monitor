@@ -613,8 +613,9 @@ QStringList BurnExecutor::getBurnersWithIMAPI()
     QStringList burners;
 
     // 使用简单的驱动器枚举来检测光驱
-    QStringList drives = QDir::drives();
-    for (const QString& drive : drives) {
+    QFileInfoList drives = QDir::drives();
+    for (const QFileInfo& driveInfo : drives) {
+        QString drive = driveInfo.absoluteFilePath();
         QString path = QDir::toNativeSeparators(drive);
         // 简单检查是否是光驱（检查介质类型）
         if (GetDriveTypeW((LPCWSTR)path.utf16()) == DRIVE_CDROM) {

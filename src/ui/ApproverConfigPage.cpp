@@ -41,7 +41,6 @@ void ApproverConfigDialog::setupUI()
 
     // 审批角色
     m_approverRoleCombo = new QComboBox(this);
-    m_approverRoleCombo->setPlaceholderText(QString::fromUtf8("请选择审批角色"));
     formLayout->addRow(QString::fromUtf8("审批角色:"), m_approverRoleCombo);
 
     // 最小密级

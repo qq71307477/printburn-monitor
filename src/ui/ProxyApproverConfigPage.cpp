@@ -44,7 +44,6 @@ void ProxyApproverDialog::setupUI()
 
     // Proxy User (代理人)
     m_proxyUserCombo = new QComboBox(this);
-    m_proxyUserCombo->setPlaceholderText(QString::fromUtf8("请选择代理人"));
     formLayout->addRow(QString::fromUtf8("代理人:"), m_proxyUserCombo);
 
     // Task Type (任务类型)

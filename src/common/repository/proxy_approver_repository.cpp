@@ -150,6 +150,13 @@ bool ProxyApproverRepository::deleteById(int id) {
     return query.exec();
 }
 
+bool ProxyApproverRepository::save(ProxyApprover& proxy) {
+    if (proxy.id > 0) {
+        return update(proxy);
+    }
+    return create(proxy);
+}
+
 QList<ProxyApprover> ProxyApproverRepository::findByOwnerUserId(int ownerUserId) {
     QList<ProxyApprover> proxies;
     if (!db_manager_) return proxies;

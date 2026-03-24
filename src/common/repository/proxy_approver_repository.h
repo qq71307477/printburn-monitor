@@ -29,11 +29,15 @@ public:
     bool update(const ProxyApprover& proxy);
     bool deleteById(int id);
     bool remove(int id) { return deleteById(id); }
+    bool save(ProxyApprover& proxy);  // Alias for create/update
 
     // Filter methods
     QList<ProxyApprover> findByOwnerUserId(int ownerUserId);
     QList<ProxyApprover> findByProxyUserId(int proxyUserId);
+    QList<ProxyApprover> findByOwnerId(int ownerUserId) { return findByOwnerUserId(ownerUserId); }
+    QList<ProxyApprover> findByProxyId(int proxyUserId) { return findByProxyUserId(proxyUserId); }
     QList<ProxyApprover> findActiveByOwner(int ownerUserId, int taskType, int securityLevelId);
+    QList<ProxyApprover> findActiveProxies(int ownerUserId, int taskType, int securityLevelId) { return findActiveByOwner(ownerUserId, taskType, securityLevelId); }
     QList<ProxyApprover> findEnabled();
 
     // Check if proxy is active (within date range and enabled)
