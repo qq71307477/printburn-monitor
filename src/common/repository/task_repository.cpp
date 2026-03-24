@@ -928,18 +928,8 @@ void UserNameCache::clear() {
 }
 
 void UserNameCache::preloadUserNames() {
-    // 预加载所有用户名到缓存
-    // 使用默认数据库管理器
-    if (!default_db_manager_) return;
-
-    QSqlQuery query(default_db_manager_->get_connection());
-    if (query.exec("SELECT id, username FROM users WHERE is_active = 1")) {
-        while (query.next()) {
-            int userId = query.value(0).toInt();
-            QString username = query.value(1).toString();
-            cacheUserName(userId, username);
-        }
-    }
+    // 使用惰性加载策略，预加载功能暂不实现
+    // 用户名会在实际使用时通过 getUserName 从数据库加载并缓存
 }
 
 // 分页查询方法实现
