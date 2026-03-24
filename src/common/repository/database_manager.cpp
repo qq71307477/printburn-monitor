@@ -247,6 +247,97 @@ bool DatabaseManager::initialize() {
         CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
         CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
         CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC);
+
+        -- 安全策略表
+        CREATE TABLE IF NOT EXISTS security_policies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            max_login_attempts INTEGER DEFAULT 5,
+            lock_duration_minutes INTEGER DEFAULT 10,
+            password_complexity TEXT,
+            password_min_length INTEGER DEFAULT 10,
+            password_expiry_days INTEGER DEFAULT 7,
+            session_timeout_minutes INTEGER DEFAULT 5,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- 刻录任务文件关联表
+        CREATE TABLE IF NOT EXISTS burn_task_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            file_path TEXT NOT NULL,
+            file_size TEXT,
+            file_type TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (task_id) REFERENCES tasks(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_burn_task_files_task ON burn_task_files(task_id);
+
+        -- 登录日志表
+        CREATE TABLE IF NOT EXISTS login_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            username TEXT,
+            dept_id INTEGER,
+            user_roles TEXT,
+            ip TEXT,
+            os TEXT,
+            action TEXT NOT NULL,
+            success INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_login_logs_user ON login_logs(user_id);
+        CREATE INDEX IF NOT EXISTS idx_login_logs_username ON login_logs(username);
+        CREATE INDEX IF NOT EXISTS idx_login_logs_created_at ON login_logs(created_at DESC);
+
+        -- 操作日志表
+        CREATE TABLE IF NOT EXISTS operation_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            module TEXT NOT NULL,
+            user_id INTEGER,
+            username TEXT,
+            dept_id INTEGER,
+            user_roles TEXT,
+            ip TEXT,
+            os TEXT,
+            operation TEXT NOT NULL,
+            success INTEGER DEFAULT 1,
+            details TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_operation_logs_user ON operation_logs(user_id);
+        CREATE INDEX IF NOT EXISTS idx_operation_logs_module ON operation_logs(module);
+        CREATE INDEX IF NOT EXISTS idx_operation_logs_created_at ON operation_logs(created_at DESC);
+
+        -- 设备授权表
+        CREATE TABLE IF NOT EXISTS device_auth (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id INTEGER NOT NULL,
+            user_id INTEGER,
+            department_id INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (device_id) REFERENCES devices(id),
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (department_id) REFERENCES departments(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_device_auth_device ON device_auth(device_id);
+        CREATE INDEX IF NOT EXISTS idx_device_auth_user ON device_auth(user_id);
+        CREATE INDEX IF NOT EXISTS idx_device_auth_dept ON device_auth(department_id);
+
+        -- 审批员用户关联表
+        CREATE TABLE IF NOT EXISTS approver_users (
+            config_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            PRIMARY KEY (config_id, user_id),
+            FOREIGN KEY (config_id) REFERENCES approver_configs(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_approver_users_config ON approver_users(config_id);
+        CREATE INDEX IF NOT EXISTS idx_approver_users_user ON approver_users(user_id);
     )";
 
     if (!execute_query(init_sql)) {

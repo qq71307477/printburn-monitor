@@ -2,6 +2,10 @@
 #include <QHeaderView>
 #include <QSettings>
 #include <QCoreApplication>
+#include <QSqlQuery>
+#include <QSqlError>
+#include <QSqlDatabase>
+#include <QDebug>
 
 SecurityPolicyConfigPage::SecurityPolicyConfigPage(QWidget* parent)
     : QWidget(parent)
@@ -252,59 +256,98 @@ void SecurityPolicyConfigPage::setupSessionGroup()
 
 void SecurityPolicyConfigPage::loadSettings()
 {
-    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    settings.beginGroup("SecurityPolicy");
-
-    // Load authentication settings
-    int authAttempts = settings.value("authAttempts", 5).toInt();
-    m_authAttemptsSpin->setValue(authAttempts);
-
-    int lockDuration = settings.value("lockDuration", 10).toInt();
-    int lockIndex = m_lockDurationCombo->findData(lockDuration);
-    if (lockIndex >= 0) {
-        m_lockDurationCombo->setCurrentIndex(lockIndex);
+    QSqlDatabase db = QSqlDatabase::database();
+    if (!db.isOpen()) {
+        qWarning() << "Database is not open, using default values";
+        return;
     }
 
-    // Load password complexity settings
-    m_requireUpperCase->setChecked(settings.value("requireUpperCase", true).toBool());
-    m_requireLowerCase->setChecked(settings.value("requireLowerCase", true).toBool());
-    m_requireDigit->setChecked(settings.value("requireDigit", true).toBool());
-    m_requireSpecial->setChecked(settings.value("requireSpecial", true).toBool());
+    QSqlQuery query(db);
+    query.prepare("SELECT max_login_attempts, lock_duration_minutes, password_complexity, "
+                  "password_min_length, password_expiry_days, session_timeout_minutes "
+                  "FROM security_policies ORDER BY id DESC LIMIT 1");
 
-    // Load password settings
-    m_passwordLengthSpin->setValue(settings.value("passwordLength", 10).toInt());
-    m_passwordExpirySpin->setValue(settings.value("passwordExpiry", 7).toInt());
+    if (query.exec() && query.next()) {
+        // Load authentication settings
+        int authAttempts = query.value(0).toInt();
+        m_authAttemptsSpin->setValue(authAttempts);
 
-    // Load session settings
-    m_sessionTimeoutSpin->setValue(settings.value("sessionTimeout", 5).toInt());
+        int lockDuration = query.value(1).toInt();
+        int lockIndex = m_lockDurationCombo->findData(lockDuration);
+        if (lockIndex >= 0) {
+            m_lockDurationCombo->setCurrentIndex(lockIndex);
+        }
 
-    settings.endGroup();
+        // Load password complexity settings
+        QString complexity = query.value(2).toString();
+        m_requireUpperCase->setChecked(complexity.contains('U'));
+        m_requireLowerCase->setChecked(complexity.contains('L'));
+        m_requireDigit->setChecked(complexity.contains('D'));
+        m_requireSpecial->setChecked(complexity.contains('S'));
+
+        // Load password settings
+        m_passwordLengthSpin->setValue(query.value(3).toInt());
+        m_passwordExpirySpin->setValue(query.value(4).toInt());
+
+        // Load session settings
+        m_sessionTimeoutSpin->setValue(query.value(5).toInt());
+    } else {
+        qDebug() << "No security policy found in database, using default values";
+    }
 }
 
 void SecurityPolicyConfigPage::saveSettings()
 {
-    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    settings.beginGroup("SecurityPolicy");
+    QSqlDatabase db = QSqlDatabase::database();
+    if (!db.isOpen()) {
+        qWarning() << "Database is not open, cannot save settings";
+        return;
+    }
 
-    // Save authentication settings
-    settings.setValue("authAttempts", m_authAttemptsSpin->value());
-    settings.setValue("lockDuration", m_lockDurationCombo->currentData().toInt());
+    // Build password complexity string
+    QString complexity;
+    if (m_requireUpperCase->isChecked()) complexity += 'U';
+    if (m_requireLowerCase->isChecked()) complexity += 'L';
+    if (m_requireDigit->isChecked()) complexity += 'D';
+    if (m_requireSpecial->isChecked()) complexity += 'S';
 
-    // Save password complexity settings
-    settings.setValue("requireUpperCase", m_requireUpperCase->isChecked());
-    settings.setValue("requireLowerCase", m_requireLowerCase->isChecked());
-    settings.setValue("requireDigit", m_requireDigit->isChecked());
-    settings.setValue("requireSpecial", m_requireSpecial->isChecked());
+    // Check if a record already exists
+    QSqlQuery checkQuery(db);
+    checkQuery.prepare("SELECT COUNT(*) FROM security_policies");
+    bool hasRecord = false;
+    if (checkQuery.exec() && checkQuery.next()) {
+        hasRecord = checkQuery.value(0).toInt() > 0;
+    }
 
-    // Save password settings
-    settings.setValue("passwordLength", m_passwordLengthSpin->value());
-    settings.setValue("passwordExpiry", m_passwordExpirySpin->value());
+    QSqlQuery query(db);
+    if (hasRecord) {
+        // Update existing record
+        query.prepare("UPDATE security_policies SET "
+                      "max_login_attempts = ?, "
+                      "lock_duration_minutes = ?, "
+                      "password_complexity = ?, "
+                      "password_min_length = ?, "
+                      "password_expiry_days = ?, "
+                      "session_timeout_minutes = ?, "
+                      "updated_at = CURRENT_TIMESTAMP");
+    } else {
+        // Insert new record
+        query.prepare("INSERT INTO security_policies "
+                      "(max_login_attempts, lock_duration_minutes, password_complexity, "
+                      "password_min_length, password_expiry_days, session_timeout_minutes) "
+                      "VALUES (?, ?, ?, ?, ?, ?)");
+    }
 
-    // Save session settings
-    settings.setValue("sessionTimeout", m_sessionTimeoutSpin->value());
+    query.addBindValue(m_authAttemptsSpin->value());
+    query.addBindValue(m_lockDurationCombo->currentData().toInt());
+    query.addBindValue(complexity);
+    query.addBindValue(m_passwordLengthSpin->value());
+    query.addBindValue(m_passwordExpirySpin->value());
+    query.addBindValue(m_sessionTimeoutSpin->value());
 
-    settings.endGroup();
-    settings.sync();
+    if (!query.exec()) {
+        qCritical() << "Failed to save security policy:" << query.lastError().text();
+    }
 }
 
 bool SecurityPolicyConfigPage::validateInput()
