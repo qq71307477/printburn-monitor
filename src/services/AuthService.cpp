@@ -9,6 +9,7 @@
 #include <QStringList>
 #include <QDateTime>
 #include <QRandomGenerator>
+#include <QDebug>
 #include <mutex>
 
 // 静态实例
