@@ -98,3 +98,5 @@ private:
     QPushButton* m_deleteButton;
     QPushButton* m_refreshButton;
 };
+
+#endif // ROLEMANAGEMENTPAGE_H
