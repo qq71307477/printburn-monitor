@@ -6,8 +6,20 @@
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QList>
+#include <QCache>
 #include <vector>
 #include <memory>
+
+// 用户名缓存，避免重复查询
+class UserNameCache {
+private:
+    static QCache<int, QString> m_cache;
+    static const int MAX_CACHE_SIZE = 1000;
+public:
+    static QString getUserName(int userId);
+    static void cacheUserName(int userId, const QString& username);
+    static void clear();
+};
 
 class TaskRepository {
 private:
@@ -36,8 +48,24 @@ public:
     QList<Task> findByType(const QString& taskType, const QString& status = QString(), int limit = 0, int offset = 0);
     QList<Task> findPendingApprovalTasks(const QString& approverRole);
 
+    // 分页查询方法（服务端分页）
+    struct PagedResult {
+        QList<Task> tasks;
+        int totalCount;
+        int totalPages;
+    };
+    PagedResult findByUserIdPaged(int userId, const QString& taskType, const QString& status,
+                                   int page, int pageSize, const QString& sortBy = "created_at", bool sortDesc = true);
+    PagedResult findPendingApprovalTasksPaged(const QString& approverRole, const QString& searchText,
+                                               const QString& taskType, const QString& status,
+                                               int page, int pageSize, const QString& sortBy = "created_at", bool sortDesc = true);
+
     // Serial number support
     bool updateSerialNumber(int taskId, const QString& serialNumber);
+
+    // Count methods for statistics
+    int countByUserId(int userId, const QString& taskType = QString(), const QString& status = QString());
+    int countPendingApproval(const QString& approverRole = QString());
 };
 
 #endif // TASK_REPOSITORY_H

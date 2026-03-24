@@ -172,6 +172,9 @@ bool AuthService::hasRole(const QString &roleName) const
     }
 
     QStringList roleNames = getCurrentUserRoleNames();
+    return roleNames.contains(roleName);
+}
+
 bool AuthService::validateUserPermission(int userId, const QString &permission)
 {
     if (permission.isEmpty()) {

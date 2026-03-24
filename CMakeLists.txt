@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(PrintBurnMonitor LANGUAGES CXX)
+project(PrintBurnMonitor VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -97,3 +97,50 @@ enable_testing()
 
 # 添加测试子目录
 add_subdirectory(tests)
+
+#================================
+# 安装配置
+#================================
+
+# 安装主程序
+install(TARGETS ${PROJECT_NAME}
+    RUNTIME DESTINATION .
+    BUNDLE DESTINATION .
+)
+
+# 安装Qt依赖 (使用windeployqt在打包脚本中处理)
+# 以下为可选的手动安装配置
+
+# 安装资源文件
+if(EXISTS "${CMAKE_SOURCE_DIR}/resources")
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/resources/"
+        DESTINATION resources
+    )
+endif()
+
+# 创建数据目录
+install(CODE "
+    file(MAKE_DIRECTORY \"\${CMAKE_INSTALL_PREFIX}/data\")
+    file(MAKE_DIRECTORY \"\${CMAKE_INSTALL_PREFIX}/logs\")
+")
+
+# Windows平台特定配置
+if(WIN32)
+    # 设置Windows应用信息
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        WIN32_EXECUTABLE TRUE
+        RC_FILE "${CMAKE_SOURCE_DIR}/deploy/windows/app.rc"
+    )
+endif()
+
+# macOS平台特定配置
+if(APPLE)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_INFO_STRING "打印刻录安全监控系统"
+        MACOSX_BUNDLE_BUNDLE_NAME "PrintBurnMonitor"
+        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.printburn.monitor"
+    )
+endif()

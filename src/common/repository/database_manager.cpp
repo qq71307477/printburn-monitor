@@ -23,9 +23,20 @@ DatabaseManager::~DatabaseManager() {
 #include <QVariant>
 
 bool DatabaseManager::initialize() {
-    QString init_sql = R"(
+    // 启用 SQLite 性能优化
+    QString pragma_sql = R"(
         PRAGMA foreign_keys = ON;
+        PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = NORMAL;
+        PRAGMA cache_size = -64000;
+        PRAGMA temp_store = MEMORY;
+    )";
 
+    if (!execute_query(pragma_sql)) {
+        return false;
+    }
+
+    QString init_sql = R"(
         CREATE TABLE IF NOT EXISTS roles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
@@ -107,6 +118,7 @@ bool DatabaseManager::initialize() {
             FOREIGN KEY (device_id) REFERENCES devices(id)
         );
 
+        -- 基础索引
         CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
         CREATE INDEX IF NOT EXISTS idx_users_department_id ON users(department_id);
@@ -213,6 +225,28 @@ bool DatabaseManager::initialize() {
         CREATE INDEX IF NOT EXISTS idx_proxy_approvers_task_type ON proxy_approvers(task_type);
         CREATE INDEX IF NOT EXISTS idx_proxy_approvers_enabled ON proxy_approvers(enabled);
         CREATE INDEX IF NOT EXISTS idx_proxy_approvers_dates ON proxy_approvers(start_date, end_date);
+
+        -- 性能优化：复合索引（用于多条件查询）
+        CREATE INDEX IF NOT EXISTS idx_tasks_user_status ON tasks(user_id, status);
+        CREATE INDEX IF NOT EXISTS idx_tasks_user_type ON tasks(user_id, type);
+        CREATE INDEX IF NOT EXISTS idx_tasks_type_status ON tasks(type, status);
+        CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at DESC);
+
+        -- 审计日志表（用于导出和查询优化）
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            resource TEXT,
+            details TEXT,
+            ip_address TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
+        CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+        CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp DESC);
     )";
 
     if (!execute_query(init_sql)) {

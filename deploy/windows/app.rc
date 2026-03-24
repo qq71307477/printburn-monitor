@@ -1,0 +1,58 @@
+// Windows资源文件 - 打印刻录安全监控系统
+// PrintBurn Monitor Resource File
+
+#include <windows.h>
+
+// 版本信息
+#define VER_MAJOR 1
+#define VER_MINOR 0
+#define VER_PATCH 0
+#define VER_BUILD 0
+
+#define VER_STRING "1.0.0.0"
+#define VER_COMPANY "PrintBurn Security"
+#define VER_FILEDESCRIPTION "打印刻录安全监控系统"
+#define VER_INTERNALNAME "PrintBurnMonitor"
+#define VER_ORIGINALFILENAME "PrintBurnMonitor.exe"
+#define VER_PRODUCTNAME "打印刻录安全监控系统"
+#define VER_COPYRIGHT "Copyright (C) 2024 PrintBurn Security"
+
+// 应用图标 (需要准备icon文件)
+// IDI_APP_ICON ICON "app_icon.ico"
+
+// 版本信息块
+1 VERSIONINFO
+FILEVERSION    VER_MAJOR, VER_MINOR, VER_PATCH, VER_BUILD
+PRODUCTVERSION VER_MAJOR, VER_MINOR, VER_PATCH, VER_BUILD
+FILEFLAGSMASK  0x3fL
+#ifdef _DEBUG
+FILEFLAGS      VS_FF_DEBUG
+#else
+FILEFLAGS      0x0L
+#endif
+FILEOS         VOS_NT_WINDOWS32
+FILETYPE       VFT_APP
+FILESUBTYPE    VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080404b0"
+        BEGIN
+            VALUE "CompanyName",      VER_COMPANY
+            VALUE "FileDescription",  VER_FILEDESCRIPTION
+            VALUE "FileVersion",      VER_STRING
+            VALUE "InternalName",     VER_INTERNALNAME
+            VALUE "LegalCopyright",   VER_COPYRIGHT
+            VALUE "OriginalFilename", VER_ORIGINALFILENAME
+            VALUE "ProductName",      VER_PRODUCTNAME
+            VALUE "ProductVersion",   VER_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x804, 1200
+    END
+END
+
+// 清单文件 (启用DPI感知)
+1 RT_MANIFEST "app.manifest"

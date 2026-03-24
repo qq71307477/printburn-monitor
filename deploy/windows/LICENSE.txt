@@ -1,0 +1,18 @@
+REM 打印刻录安全监控系统
+REM 本软件受版权保护，未经授权不得复制或分发。
+REM
+REM Copyright (c) 2024 PrintBurn Security
+REM All rights reserved.
+REM
+REM 1. 授权范围
+REM    本软件授权您在单台计算机上使用。
+REM
+REM 2. 限制
+REM    - 不得复制、修改、分发本软件
+REM    - 不得逆向工程、反编译或反汇编
+REM    - 不得出租、出售或转让本软件
+REM
+REM 3. 免责声明
+REM    本软件按"现状"提供，不提供任何明示或暗示的保证。
+REM
+REM 如需商业授权，请联系: sales@printburn-security.com

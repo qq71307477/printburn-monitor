@@ -7,13 +7,14 @@
  * 2. 初始化数据库连接
  * 3. 显示登录窗口
  * 4. 登录成功后显示主窗口
- * 5. 加载插件
+ * 5. 延迟加载插件（后台加载）
  */
 
 #include <QApplication>
 #include <QMessageBox>
 #include <QDir>
 #include <QStandardPaths>
+#include <QTimer>
 #include <memory>
 
 #include "ui/MainWindow.h"
@@ -62,45 +63,48 @@ std::unique_ptr<DatabaseManager> initializeDatabase()
 }
 
 /**
- * @brief 加载插件
+ * @brief 后台加载插件（不阻塞UI）
  * @param pluginManager 插件管理器
  */
-void loadPlugins(PluginManager *pluginManager)
+void loadPluginsAsync(PluginManager *pluginManager)
 {
     if (!pluginManager) {
         return;
     }
 
-    // 获取插件目录路径
-    QString pluginsPath = QCoreApplication::applicationDirPath() + "/plugins";
-    QDir pluginsDir(pluginsPath);
+    // 使用 QtConcurrent 或 QTimer 延迟加载插件
+    QTimer::singleShot(100, [pluginManager]() {
+        // 获取插件目录路径
+        QString pluginsPath = QCoreApplication::applicationDirPath() + "/plugins";
+        QDir pluginsDir(pluginsPath);
 
-    if (!pluginsDir.exists()) {
-        qWarning("Plugins directory not found: %s", qPrintable(pluginsPath));
-        return;
-    }
+        if (!pluginsDir.exists()) {
+            qWarning("Plugins directory not found: %s", qPrintable(pluginsPath));
+            return;
+        }
 
-    // 遍历插件目录，加载所有插件
-    QStringList pluginFiles = pluginsDir.entryList(QDir::Files);
-    for (const QString &fileName : pluginFiles) {
-        QString pluginPath = pluginsDir.absoluteFilePath(fileName);
+        // 遍历插件目录，加载所有插件
+        QStringList pluginFiles = pluginsDir.entryList(QDir::Files);
+        for (const QString &fileName : pluginFiles) {
+            QString pluginPath = pluginsDir.absoluteFilePath(fileName);
 
-        // 根据平台过滤插件文件
+            // 根据平台过滤插件文件
 #ifdef Q_OS_WIN
-        if (!fileName.endsWith(".dll", Qt::CaseInsensitive)) continue;
+            if (!fileName.endsWith(".dll", Qt::CaseInsensitive)) continue;
 #else
-        if (!fileName.endsWith(".so") && !fileName.endsWith(".dylib")) continue;
+            if (!fileName.endsWith(".so") && !fileName.endsWith(".dylib")) continue;
 #endif
 
-        if (pluginManager->loadPlugin(pluginPath)) {
-            qDebug("Loaded plugin: %s", qPrintable(fileName));
-        } else {
-            qWarning("Failed to load plugin: %s", qPrintable(fileName));
+            if (pluginManager->loadPlugin(pluginPath)) {
+                qDebug("Loaded plugin: %s", qPrintable(fileName));
+            } else {
+                qWarning("Failed to load plugin: %s", qPrintable(fileName));
+            }
         }
-    }
 
-    // 初始化所有已加载的插件
-    pluginManager->initializeAllPlugins();
+        // 初始化所有已加载的插件
+        pluginManager->initializeAllPlugins();
+    });
 }
 
 int main(int argc, char *argv[])
@@ -139,8 +143,8 @@ int main(int argc, char *argv[])
     mainWindow.show();
     mainWindow.statusBar()->showMessage(welcomeMessage, 5000);
 
-// 4. 加载插件
-    loadPlugins(&PluginManager::getInstance());
+    // 4. 延迟加载插件（不阻塞UI显示）
+    loadPluginsAsync(&PluginManager::getInstance());
 
     // 5. 进入事件循环
     int result = app.exec();

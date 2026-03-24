@@ -181,12 +181,6 @@ Task TaskService::getTaskById(int taskId) const
 
 bool TaskService::checkSensitiveWords(const QString &content) const
 {
-#include "common/PluginManager.h"
-
-// ... a few lines later ...
-
-bool TaskService::checkSensitiveWords(const QString &content) const
-{
     QVariantMap params;
     params["content"] = content;
 

@@ -900,3 +900,308 @@ bool TaskRepository::updateSerialNumber(int taskId, const QString& serialNumber)
 
     return query.exec();
 }
+
+// 用户名缓存实现
+QCache<int, QString> UserNameCache::m_cache(MAX_CACHE_SIZE);
+
+QString UserNameCache::getUserName(int userId) {
+    if (m_cache.contains(userId)) {
+        return *m_cache.object(userId);
+    }
+    return QString();
+}
+
+void UserNameCache::cacheUserName(int userId, const QString& username) {
+    m_cache.insert(userId, new QString(username));
+}
+
+void UserNameCache::clear() {
+    m_cache.clear();
+}
+
+// 分页查询方法实现
+TaskRepository::PagedResult TaskRepository::findByUserIdPaged(int userId, const QString& taskType, const QString& status,
+                                                               int page, int pageSize, const QString& sortBy, bool sortDesc) {
+    PagedResult result;
+    result.totalCount = 0;
+    result.totalPages = 0;
+
+    if (!db_manager_) return result;
+
+    // 先计算总数
+    QString countSql = "SELECT COUNT(*) FROM tasks WHERE (assigned_user_id = ? OR created_by_user_id = ?)";
+    if (!taskType.isEmpty()) countSql += " AND type = ?";
+    if (!status.isEmpty()) countSql += " AND status = ?";
+
+    QSqlQuery countQuery(db_manager_->get_connection());
+    countQuery.prepare(countSql);
+    countQuery.addBindValue(userId);
+    countQuery.addBindValue(userId);
+    if (!taskType.isEmpty()) countQuery.addBindValue(taskType);
+    if (!status.isEmpty()) countQuery.addBindValue(status);
+
+    if (countQuery.exec() && countQuery.next()) {
+        result.totalCount = countQuery.value(0).toInt();
+        result.totalPages = (result.totalCount + pageSize - 1) / pageSize;
+    }
+
+    // 分页查询数据
+    QString orderDirection = sortDesc ? "DESC" : "ASC";
+    QString sql = QString("SELECT id, title, description, assigned_user_id, created_by_user_id, device_id, "
+                          "status, priority, due_date, completed_at, user_id, type, file_path, copies, "
+                          "approver_id, approval_status, media_type, session_mode, approval_time, approval_reason "
+                          "FROM tasks WHERE (assigned_user_id = ? OR created_by_user_id = ?)");
+    if (!taskType.isEmpty()) sql += " AND type = ?";
+    if (!status.isEmpty()) sql += " AND status = ?";
+    sql += QString(" ORDER BY %1 %2 LIMIT ? OFFSET ?").arg(sortBy, orderDirection);
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare(sql);
+    query.addBindValue(userId);
+    query.addBindValue(userId);
+    if (!taskType.isEmpty()) query.addBindValue(taskType);
+    if (!status.isEmpty()) query.addBindValue(status);
+    query.addBindValue(pageSize);
+    query.addBindValue((page - 1) * pageSize);
+
+    if (query.exec()) {
+        while (query.next()) {
+            Task task;
+            task.id = query.value(0).toInt();
+            task.title = query.value(1).toString().toStdString();
+            task.description = query.value(2).toString().toStdString();
+            task.assigned_user_id = query.value(3).toInt();
+            task.created_by_user_id = query.value(4).toInt();
+            task.device_id = query.value(5).toInt();
+            task.status = query.value(6).toString().toStdString();
+            task.priority = query.value(7).toString().toStdString();
+
+            QString due_date_str = query.value(8).toString();
+            if (!due_date_str.isEmpty()) {
+                QDateTime due_date = QDateTime::fromString(due_date_str, "yyyy-MM-dd hh:mm:ss");
+                if (!due_date.isValid()) {
+                    due_date = QDateTime::fromString(due_date_str, Qt::ISODate);
+                }
+                task.due_date = due_date.toSecsSinceEpoch();
+            }
+
+            QString completed_at_str = query.value(9).toString();
+            if (!completed_at_str.isEmpty()) {
+                QDateTime completed_at = QDateTime::fromString(completed_at_str, "yyyy-MM-dd hh:mm:ss");
+                if (!completed_at.isValid()) {
+                    completed_at = QDateTime::fromString(completed_at_str, Qt::ISODate);
+                }
+                task.completed_at = completed_at.toSecsSinceEpoch();
+            }
+
+            task.setUserId(query.value(10).toInt());
+            task.setType(query.value(11).toString());
+            task.setFilePath(query.value(12).toString());
+            task.setCopies(query.value(13).toInt());
+            task.setApproverId(query.value(14).toInt());
+            task.setApprovalStatus(query.value(15).toString());
+            task.setMediaType(query.value(16).toString());
+            task.setSessionMode(query.value(17).toString());
+
+            QString approval_time_str = query.value(18).toString();
+            if (!approval_time_str.isEmpty()) {
+                QDateTime approval_time = QDateTime::fromString(approval_time_str, "yyyy-MM-dd hh:mm:ss");
+                if (!approval_time.isValid()) {
+                    approval_time = QDateTime::fromString(approval_time_str, Qt::ISODate);
+                }
+                task.setApprovalTime(approval_time);
+            }
+            task.setApprovalReason(query.value(19).toString());
+
+            result.tasks.append(task);
+        }
+    }
+
+    return result;
+}
+
+TaskRepository::PagedResult TaskRepository::findPendingApprovalTasksPaged(const QString& approverRole, const QString& searchText,
+                                                                           const QString& taskType, const QString& status,
+                                                                           int page, int pageSize, const QString& sortBy, bool sortDesc) {
+    PagedResult result;
+    result.totalCount = 0;
+    result.totalPages = 0;
+
+    if (!db_manager_) return result;
+
+    // 构建查询条件
+    QString whereClause = "WHERE t.status = 'pending_approval'";
+    if (!approverRole.isEmpty()) {
+        whereClause += " AND r.name = ?";
+    }
+    if (!searchText.isEmpty()) {
+        whereClause += " AND (t.title LIKE ? OR t.description LIKE ?)";
+    }
+    if (!taskType.isEmpty()) {
+        whereClause += " AND t.type = ?";
+    }
+    if (!status.isEmpty()) {
+        whereClause += " AND t.approval_status = ?";
+    }
+
+    // 先计算总数
+    QString countSql = QString("SELECT COUNT(DISTINCT t.id) FROM tasks t "
+                               "LEFT JOIN users u ON t.approver_id = u.id "
+                               "LEFT JOIN user_roles ur ON u.id = ur.user_id "
+                               "LEFT JOIN roles r ON ur.role_id = r.id %1").arg(whereClause);
+
+    QSqlQuery countQuery(db_manager_->get_connection());
+    countQuery.prepare(countSql);
+
+    int bindIndex = 0;
+    if (!approverRole.isEmpty()) {
+        countQuery.addBindValue(approverRole);
+    }
+    if (!searchText.isEmpty()) {
+        QString pattern = "%" + searchText + "%";
+        countQuery.addBindValue(pattern);
+        countQuery.addBindValue(pattern);
+    }
+    if (!taskType.isEmpty()) {
+        countQuery.addBindValue(taskType);
+    }
+    if (!status.isEmpty()) {
+        countQuery.addBindValue(status);
+    }
+
+    if (countQuery.exec() && countQuery.next()) {
+        result.totalCount = countQuery.value(0).toInt();
+        result.totalPages = (result.totalCount + pageSize - 1) / pageSize;
+    }
+
+    // 分页查询数据
+    QString orderDirection = sortDesc ? "DESC" : "ASC";
+    QString sql = QString("SELECT DISTINCT t.id, t.title, t.description, t.assigned_user_id, t.created_by_user_id, t.device_id, "
+                          "t.status, t.priority, t.due_date, t.completed_at, t.user_id, t.type, t.file_path, t.copies, "
+                          "t.approver_id, t.approval_status, t.media_type, t.session_mode, t.approval_time, t.approval_reason "
+                          "FROM tasks t "
+                          "LEFT JOIN users u ON t.approver_id = u.id "
+                          "LEFT JOIN user_roles ur ON u.id = ur.user_id "
+                          "LEFT JOIN roles r ON ur.role_id = r.id "
+                          "%1 ORDER BY t.%2 %3 LIMIT ? OFFSET ?").arg(whereClause, sortBy, orderDirection);
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare(sql);
+
+    if (!approverRole.isEmpty()) {
+        query.addBindValue(approverRole);
+    }
+    if (!searchText.isEmpty()) {
+        QString pattern = "%" + searchText + "%";
+        query.addBindValue(pattern);
+        query.addBindValue(pattern);
+    }
+    if (!taskType.isEmpty()) {
+        query.addBindValue(taskType);
+    }
+    if (!status.isEmpty()) {
+        query.addBindValue(status);
+    }
+    query.addBindValue(pageSize);
+    query.addBindValue((page - 1) * pageSize);
+
+    if (query.exec()) {
+        while (query.next()) {
+            Task task;
+            task.id = query.value(0).toInt();
+            task.title = query.value(1).toString().toStdString();
+            task.description = query.value(2).toString().toStdString();
+            task.assigned_user_id = query.value(3).toInt();
+            task.created_by_user_id = query.value(4).toInt();
+            task.device_id = query.value(5).toInt();
+            task.status = query.value(6).toString().toStdString();
+            task.priority = query.value(7).toString().toStdString();
+
+            QString due_date_str = query.value(8).toString();
+            if (!due_date_str.isEmpty()) {
+                QDateTime due_date = QDateTime::fromString(due_date_str, "yyyy-MM-dd hh:mm:ss");
+                if (!due_date.isValid()) {
+                    due_date = QDateTime::fromString(due_date_str, Qt::ISODate);
+                }
+                task.due_date = due_date.toSecsSinceEpoch();
+            }
+
+            QString completed_at_str = query.value(9).toString();
+            if (!completed_at_str.isEmpty()) {
+                QDateTime completed_at = QDateTime::fromString(completed_at_str, "yyyy-MM-dd hh:mm:ss");
+                if (!completed_at.isValid()) {
+                    completed_at = QDateTime::fromString(completed_at_str, Qt::ISODate);
+                }
+                task.completed_at = completed_at.toSecsSinceEpoch();
+            }
+
+            task.setUserId(query.value(10).toInt());
+            task.setType(query.value(11).toString());
+            task.setFilePath(query.value(12).toString());
+            task.setCopies(query.value(13).toInt());
+            task.setApproverId(query.value(14).toInt());
+            task.setApprovalStatus(query.value(15).toString());
+            task.setMediaType(query.value(16).toString());
+            task.setSessionMode(query.value(17).toString());
+
+            QString approval_time_str = query.value(18).toString();
+            if (!approval_time_str.isEmpty()) {
+                QDateTime approval_time = QDateTime::fromString(approval_time_str, "yyyy-MM-dd hh:mm:ss");
+                if (!approval_time.isValid()) {
+                    approval_time = QDateTime::fromString(approval_time_str, Qt::ISODate);
+                }
+                task.setApprovalTime(approval_time);
+            }
+            task.setApprovalReason(query.value(19).toString());
+
+            result.tasks.append(task);
+        }
+    }
+
+    return result;
+}
+
+int TaskRepository::countByUserId(int userId, const QString& taskType, const QString& status) {
+    if (!db_manager_) return 0;
+
+    QString sql = "SELECT COUNT(*) FROM tasks WHERE (assigned_user_id = ? OR created_by_user_id = ?)";
+    if (!taskType.isEmpty()) sql += " AND type = ?";
+    if (!status.isEmpty()) sql += " AND status = ?";
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare(sql);
+    query.addBindValue(userId);
+    query.addBindValue(userId);
+    if (!taskType.isEmpty()) query.addBindValue(taskType);
+    if (!status.isEmpty()) query.addBindValue(status);
+
+    if (query.exec() && query.next()) {
+        return query.value(0).toInt();
+    }
+    return 0;
+}
+
+int TaskRepository::countPendingApproval(const QString& approverRole) {
+    if (!db_manager_) return 0;
+
+    QString sql = "SELECT COUNT(DISTINCT t.id) FROM tasks t "
+                  "LEFT JOIN users u ON t.approver_id = u.id "
+                  "LEFT JOIN user_roles ur ON u.id = ur.user_id "
+                  "LEFT JOIN roles r ON ur.role_id = r.id "
+                  "WHERE t.status = 'pending_approval'";
+
+    if (!approverRole.isEmpty()) {
+        sql += " AND r.name = ?";
+    }
+
+    QSqlQuery query(db_manager_->get_connection());
+    query.prepare(sql);
+    if (!approverRole.isEmpty()) {
+        query.addBindValue(approverRole);
+    }
+
+    if (query.exec() && query.next()) {
+        return query.value(0).toInt();
+    }
+    return 0;
+}
