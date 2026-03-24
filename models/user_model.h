@@ -8,10 +8,11 @@
 
 class User {
 public:
-    User() : id(0), department_id(0), is_active(true) {}
+    User() : id(0), department_id(0), role_id(0), is_active(true) {}
 
     // Getters
     int getId() const { return id; }
+    int getRoleId() const { return role_id; }
     QString getUsername() const { return QString::fromStdString(username); }
     QString getPassword() const { return QString::fromStdString(password_hash); }
     QString getEmail() const { return QString::fromStdString(email); }
@@ -30,6 +31,7 @@ public:
     void setPassword(const QString& value) { password_hash = value.toStdString(); }
     void setEmail(const QString& value) { email = value.toStdString(); }
     void setDepartmentId(int value) { department_id = value; }
+    void setRoleId(int value) { role_id = value; }
     void setFirstName(const QString& value) { first_name = value.toStdString(); }
     void setLastName(const QString& value) { last_name = value.toStdString(); }
     void setPhone(const QString& value) { phone = value.toStdString(); }
@@ -40,6 +42,7 @@ public:
 
     // Legacy struct members for backward compatibility
     int id;
+    int role_id;
     std::string username;
     std::string password_hash;
     std::string email;
