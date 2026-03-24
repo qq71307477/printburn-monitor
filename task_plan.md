@@ -76,9 +76,16 @@ Phase 7
 
 | Platform | Status | Notes |
 |----------|--------|-------|
-| Linux (Ubuntu, GCC) | ✅ 成功 | Qt 5.15.3, 2m54s |
-| Windows (MSVC) | ✅ 成功 | Qt 5.12.12, 3m5s |
+| Linux (Ubuntu, GCC) | ✅ 成功 | Qt 5.15.3, 云主机 112.124.17.56 |
+| Windows (MSVC) | ⏸️ 暂停 | 按用户要求暂停 GitHub 测试 |
 | macOS | ❌ 不支持 | runner 配置问题 |
+
+## Feature Progress
+
+详见 [FEATURE_PROGRESS.md](FEATURE_PROGRESS.md)
+
+- **P0 功能完成率**: 100% (20/20)
+- **P2 功能**: 1 项暂缓（授权管理）
 
 ## Notes
 
