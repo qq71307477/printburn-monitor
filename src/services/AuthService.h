@@ -35,6 +35,12 @@ public:
     // 静态方法，验证指定用户是否拥有特定权限
     static bool validateUserPermission(int userId, const QString &permission);
 
+    // 密码哈希辅助函数
+    static QString generateSalt(int length = 16);
+    static QString hashPassword(const QString& password, const QString& salt, int iterations = 10000);
+    static QString createPasswordHash(const QString& password);
+    static bool verifyPassword(const QString& password, const QString& storedHash);
+
 
 private:
     AuthService();  // 私有构造函数，确保单例

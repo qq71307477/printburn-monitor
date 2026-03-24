@@ -17,6 +17,8 @@ struct AuditLogEntry {
     QString details;        // 详细信息
     QDateTime timestamp;    // 时间戳
     QString severity;       // 严重级别 (INFO, WARN, ERROR)
+    QString prevHash;       // 上一条日志的哈希值（用于哈希链防篡改）
+    QString currentHash;    // 当前日志的哈希值
 };
 
 class LogAuditService
@@ -78,6 +80,12 @@ public:
                                        const QDateTime &endTime = QDateTime(),
                                        int limit = 100) const;
 
+    // 验证日志完整性（哈希链校验）
+    bool verifyIntegrity() const;  // 返回 true 表示日志未被篡改
+
+    // 获取篡改位置（如果验证失败）
+    int findTamperPosition() const;
+
 private:
     LogAuditService();  // 私有构造函数，确保单例
     ~LogAuditService();
@@ -87,6 +95,15 @@ private:
 
     // 创建审计日志表（如果不存在）
     bool ensureAuditLogTableExists() const;
+
+    // 计算当前记录的哈希（用于哈希链）
+    QString calculateHash(const QString &prevHash, const AuditLogEntry &entry) const;
+
+    // 获取最后一条日志的哈希值
+    QString getLastLogHash() const;
+
+    // 检查并添加哈希字段到现有表
+    bool ensureHashColumnsExist() const;
 };
 
 #endif // LOGAUDITSERVICE_H

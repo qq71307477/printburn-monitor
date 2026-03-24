@@ -7,7 +7,9 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QCryptographicHash>
 #include <mutex>
+#include "qt_compat.h"
 
 // 静态实例
 static std::once_flag onceFlag;
@@ -71,7 +73,7 @@ QList<AuditLogEntry> LogAuditService::queryLogs(const QString &eventType,
 {
     QList<AuditLogEntry> logs;
 
-    QString queryStr = "SELECT id, eventType, userId, username, ipAddress, userAgent, details, timestamp, severity FROM audit_logs WHERE 1=1";
+    QString queryStr = "SELECT id, eventType, userId, username, ipAddress, userAgent, details, timestamp, severity, prev_hash, current_hash FROM audit_logs WHERE 1=1";
 
     if (!eventType.isEmpty()) {
         queryStr += " AND eventType = ?";
@@ -127,6 +129,8 @@ QList<AuditLogEntry> LogAuditService::queryLogs(const QString &eventType,
         entry.details = query.value(6).toString();
         entry.timestamp = query.value(7).toDateTime();
         entry.severity = query.value(8).toString();
+        entry.prevHash = query.value(9).toString();
+        entry.currentHash = query.value(10).toString();
 
         logs.append(entry);
     }
@@ -142,7 +146,7 @@ QList<AuditLogEntry> LogAuditService::getLogsByUser(int userId,
 {
     QList<AuditLogEntry> logs;
 
-    QString queryStr = "SELECT id, eventType, userId, username, ipAddress, userAgent, details, timestamp, severity FROM audit_logs WHERE userId = ?";
+    QString queryStr = "SELECT id, eventType, userId, username, ipAddress, userAgent, details, timestamp, severity, prev_hash, current_hash FROM audit_logs WHERE userId = ?";
 
     if (startTime.isValid()) {
         queryStr += " AND timestamp >= ?";
@@ -181,6 +185,8 @@ QList<AuditLogEntry> LogAuditService::getLogsByUser(int userId,
         entry.details = query.value(6).toString();
         entry.timestamp = query.value(7).toDateTime();
         entry.severity = query.value(8).toString();
+        entry.prevHash = query.value(9).toString();
+        entry.currentHash = query.value(10).toString();
 
         logs.append(entry);
     }
@@ -196,7 +202,7 @@ QList<AuditLogEntry> LogAuditService::getLogsByEventType(const QString &eventTyp
 {
     QList<AuditLogEntry> logs;
 
-    QString queryStr = "SELECT id, eventType, userId, username, ipAddress, userAgent, details, timestamp, severity FROM audit_logs WHERE eventType = ?";
+    QString queryStr = "SELECT id, eventType, userId, username, ipAddress, userAgent, details, timestamp, severity, prev_hash, current_hash FROM audit_logs WHERE eventType = ?";
 
     if (startTime.isValid()) {
         queryStr += " AND timestamp >= ?";
@@ -235,6 +241,8 @@ QList<AuditLogEntry> LogAuditService::getLogsByEventType(const QString &eventTyp
         entry.details = query.value(6).toString();
         entry.timestamp = query.value(7).toDateTime();
         entry.severity = query.value(8).toString();
+        entry.prevHash = query.value(9).toString();
+        entry.currentHash = query.value(10).toString();
 
         logs.append(entry);
     }
@@ -355,7 +363,7 @@ bool LogAuditService::exportLogs(const QString &filePath,
 
 QList<AuditLogEntry> LogAuditService::getRecentLoginLogs(int userId, int limit) const
 {
-    QString queryStr = "SELECT id, eventType, userId, username, ipAddress, userAgent, details, timestamp, severity FROM audit_logs WHERE eventType IN ('LOGIN_SUCCESS', 'LOGIN_FAILURE', 'LOGOUT')";
+    QString queryStr = "SELECT id, eventType, userId, username, ipAddress, userAgent, details, timestamp, severity, prev_hash, current_hash FROM audit_logs WHERE eventType IN ('LOGIN_SUCCESS', 'LOGIN_FAILURE', 'LOGOUT')";
 
     if (userId > 0) {
         queryStr += " AND userId = ?";
@@ -388,6 +396,8 @@ QList<AuditLogEntry> LogAuditService::getRecentLoginLogs(int userId, int limit) 
         entry.details = query.value(6).toString();
         entry.timestamp = query.value(7).toDateTime();
         entry.severity = query.value(8).toString();
+        entry.prevHash = query.value(9).toString();
+        entry.currentHash = query.value(10).toString();
 
         logs.append(entry);
     }
@@ -400,7 +410,7 @@ QList<AuditLogEntry> LogAuditService::getAnomalyLogs(const QDateTime &startTime,
                                                     int limit) const
 {
     // 这是一个简化实现，实际系统中可能会有更复杂的异常检测逻辑
-    QString queryStr = "SELECT id, eventType, userId, username, ipAddress, userAgent, details, timestamp, severity FROM audit_logs WHERE severity IN ('WARN', 'ERROR')";
+    QString queryStr = "SELECT id, eventType, userId, username, ipAddress, userAgent, details, timestamp, severity, prev_hash, current_hash FROM audit_logs WHERE severity IN ('WARN', 'ERROR')";
 
     if (startTime.isValid()) {
         queryStr += " AND timestamp >= ?";
@@ -439,6 +449,8 @@ QList<AuditLogEntry> LogAuditService::getAnomalyLogs(const QDateTime &startTime,
         entry.details = query.value(6).toString();
         entry.timestamp = query.value(7).toDateTime();
         entry.severity = query.value(8).toString();
+        entry.prevHash = query.value(9).toString();
+        entry.currentHash = query.value(10).toString();
 
         logs.append(entry);
     }
@@ -448,7 +460,13 @@ QList<AuditLogEntry> LogAuditService::getAnomalyLogs(const QDateTime &startTime,
 
 bool LogAuditService::saveLogToDatabase(const AuditLogEntry &entry) const
 {
-    QSqlQuery query("INSERT INTO audit_logs (eventType, userId, username, ipAddress, userAgent, details, timestamp, severity) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    // 获取上一条日志的哈希值
+    QString prevHash = getLastLogHash();
+
+    // 计算当前记录的哈希
+    QString currentHash = calculateHash(prevHash, entry);
+
+    QSqlQuery query("INSERT INTO audit_logs (eventType, userId, username, ipAddress, userAgent, details, timestamp, severity, prev_hash, current_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     query.bindValue(0, entry.eventType);
     query.bindValue(1, entry.userId);
     query.bindValue(2, entry.username);
@@ -457,12 +475,146 @@ bool LogAuditService::saveLogToDatabase(const AuditLogEntry &entry) const
     query.bindValue(5, entry.details);
     query.bindValue(6, entry.timestamp);
     query.bindValue(7, entry.severity);
+    query.bindValue(8, prevHash);
+    query.bindValue(9, currentHash);
 
     if (!query.exec()) {
         return false;
     }
 
     return true;
+}
+
+QString LogAuditService::getLastLogHash() const
+{
+    QSqlQuery query("SELECT current_hash FROM audit_logs ORDER BY id DESC LIMIT 1");
+    if (query.exec() && query.next()) {
+        return query.value(0).toString();
+    }
+    // 如果没有记录，返回空字符串作为第一条记录的 prev_hash
+    return QString();
+}
+
+QString LogAuditService::calculateHash(const QString &prevHash, const AuditLogEntry &entry) const
+{
+    // 构建用于哈希的字符串：prevHash|userId|eventType|timestamp|details|ipAddress|severity
+    // 使用固定分隔符 "|" 防止字段拼接歧义
+    QString hashInput = QString("%1|%2|%3|%4|%5|%6|%7")
+        .arg(prevHash)
+        .arg(entry.userId)
+        .arg(entry.eventType)
+        .arg(entry.timestamp.toString(Qt::ISODate))
+        .arg(entry.details)
+        .arg(entry.ipAddress)
+        .arg(entry.severity);
+
+    QByteArray hashBytes = QCryptographicHash::hash(
+        hashInput.toUtf8(),
+        QCryptographicHash::Sha256
+    );
+
+    return QString(hashBytes.toHex());
+}
+
+bool LogAuditService::verifyIntegrity() const
+{
+    QSqlQuery query("SELECT id, prev_hash, current_hash, userId, eventType, timestamp, details, ipAddress, severity "
+                    "FROM audit_logs ORDER BY id ASC");
+
+    if (!query.exec()) {
+        return false;
+    }
+
+    QString expectedPrevHash;
+
+    while (query.next()) {
+        int id = query.value(0).toInt();
+        QString storedPrevHash = query.value(1).toString();
+        QString storedCurrentHash = query.value(2).toString();
+
+        // 检查 prev_hash 是否正确
+        if (storedPrevHash != expectedPrevHash) {
+            qDebug() << "Hash chain broken at record id:" << id
+                     << "Expected prev_hash:" << expectedPrevHash
+                     << "Stored prev_hash:" << storedPrevHash;
+            return false;
+        }
+
+        // 重建 AuditLogEntry 用于哈希验证
+        AuditLogEntry entry;
+        entry.userId = query.value(3).toInt();
+        entry.eventType = query.value(4).toString();
+        entry.timestamp = query.value(5).toDateTime();
+        entry.details = query.value(6).toString();
+        entry.ipAddress = query.value(7).toString();
+        entry.severity = query.value(8).toString();
+
+        // 计算期望的哈希值
+        QString calculatedHash = calculateHash(expectedPrevHash, entry);
+
+        // 检查 current_hash 是否正确
+        if (storedCurrentHash != calculatedHash) {
+            qDebug() << "Hash mismatch at record id:" << id
+                     << "Calculated hash:" << calculatedHash
+                     << "Stored hash:" << storedCurrentHash;
+            return false;
+        }
+
+        // 更新期望的 prev_hash 为当前记录的 current_hash
+        expectedPrevHash = storedCurrentHash;
+    }
+
+    return true;
+}
+
+int LogAuditService::findTamperPosition() const
+{
+    QSqlQuery query("SELECT id, prev_hash, current_hash, userId, eventType, timestamp, details, ipAddress, severity "
+                    "FROM audit_logs ORDER BY id ASC");
+
+    if (!query.exec()) {
+        return -1;
+    }
+
+    QString expectedPrevHash;
+    int lastValidId = -1;
+
+    while (query.next()) {
+        int id = query.value(0).toInt();
+        QString storedPrevHash = query.value(1).toString();
+        QString storedCurrentHash = query.value(2).toString();
+
+        // 检查 prev_hash 是否正确
+        if (storedPrevHash != expectedPrevHash) {
+            // 返回被篡改记录的 ID
+            return id;
+        }
+
+        // 重建 AuditLogEntry 用于哈希验证
+        AuditLogEntry entry;
+        entry.userId = query.value(3).toInt();
+        entry.eventType = query.value(4).toString();
+        entry.timestamp = query.value(5).toDateTime();
+        entry.details = query.value(6).toString();
+        entry.ipAddress = query.value(7).toString();
+        entry.severity = query.value(8).toString();
+
+        // 计算期望的哈希值
+        QString calculatedHash = calculateHash(expectedPrevHash, entry);
+
+        // 检查 current_hash 是否正确
+        if (storedCurrentHash != calculatedHash) {
+            // 返回被篡改记录的 ID
+            return id;
+        }
+
+        // 更新期望的 prev_hash 为当前记录的 current_hash
+        expectedPrevHash = storedCurrentHash;
+        lastValidId = id;
+    }
+
+    // 如果没有发现篡改，返回 -1
+    return -1;
 }
 
 bool LogAuditService::ensureAuditLogTableExists() const
@@ -477,7 +629,9 @@ bool LogAuditService::ensureAuditLogTableExists() const
         "userAgent TEXT,"
         "details TEXT,"
         "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,"
-        "severity TEXT DEFAULT 'INFO'"
+        "severity TEXT DEFAULT 'INFO',"
+        "prev_hash TEXT,"
+        "current_hash TEXT"
         ");"
     );
 
@@ -494,6 +648,30 @@ bool LogAuditService::ensureAuditLogTableExists() const
 
     QSqlQuery indexQuery3("CREATE INDEX IF NOT EXISTS idx_audit_logs_eventType ON audit_logs(eventType);");
     indexQuery3.exec();
+
+    // 确保哈希字段存在（对于已存在的表）
+    ensureHashColumnsExist();
+
+    return true;
+}
+
+bool LogAuditService::ensureHashColumnsExist() const
+{
+    // 检查 prev_hash 列是否存在
+    QSqlQuery checkPrevHash("SELECT prev_hash FROM audit_logs LIMIT 1");
+    if (!checkPrevHash.exec()) {
+        // 列不存在，添加它
+        QSqlQuery addPrevHash("ALTER TABLE audit_logs ADD COLUMN prev_hash TEXT");
+        addPrevHash.exec();
+    }
+
+    // 检查 current_hash 列是否存在
+    QSqlQuery checkCurrentHash("SELECT current_hash FROM audit_logs LIMIT 1");
+    if (!checkCurrentHash.exec()) {
+        // 列不存在，添加它
+        QSqlQuery addCurrentHash("ALTER TABLE audit_logs ADD COLUMN current_hash TEXT");
+        addCurrentHash.exec();
+    }
 
     return true;
 }

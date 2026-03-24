@@ -72,6 +72,8 @@ class ImportUsersDialog : public QDialog
 public:
     explicit ImportUsersDialog(QWidget* parent = nullptr);
     QString getFilePath() const;
+    QList<User> getParsedUsers() const;
+    QString getImportSummary() const;
 
 private slots:
     void onBrowseClicked();
@@ -80,9 +82,14 @@ private slots:
 
 private:
     void setupUI();
+    bool parseCSVFile(const QString& filePath);
+    int getDepartmentIdByName(const QString& name) const;
+    int getRoleIdByName(const QString& name) const;
 
     QString m_filePath;
     QLineEdit* m_filePathEdit;
+    QList<User> m_parsedUsers;
+    QString m_importSummary;
 };
 
 // Reset Password Dialog

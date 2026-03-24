@@ -6,6 +6,7 @@
 #include <QTextStream>
 #include <QMessageBox>
 #include <QCryptographicHash>
+#include <QMap>
 #include "src/common/repository/department_repository.h"
 #include "src/common/repository/role_repository.h"
 
@@ -325,7 +326,197 @@ void ImportUsersDialog::onImportClicked()
         QMessageBox::warning(this, "提示", "请先选择要导入的文件！");
         return;
     }
+
+    // 检查文件格式
+    if (!m_filePath.endsWith(".csv", Qt::CaseInsensitive)) {
+        QMessageBox::warning(this, "错误", "请选择 CSV 格式文件（Excel 可另存为 CSV）");
+        return;
+    }
+
+    // 解析 CSV 文件
+    if (!parseCSVFile(m_filePath)) {
+        return;
+    }
+
+    if (m_parsedUsers.isEmpty()) {
+        QMessageBox::warning(this, "提示", "文件中没有有效的用户数据！");
+        return;
+    }
+
     accept();
+}
+
+bool ImportUsersDialog::parseCSVFile(const QString& filePath)
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::warning(this, "错误", "无法打开文件: " + filePath);
+        return false;
+    }
+
+    QTextStream in(&file);
+    in.setCodec("UTF-8");
+
+    // 跳过表头
+    QString header = in.readLine();
+    if (header.isEmpty()) {
+        QMessageBox::warning(this, "错误", "文件为空或格式不正确");
+        file.close();
+        return false;
+    }
+
+    m_parsedUsers.clear();
+    QStringList errorList;
+    int successCount = 0;
+    int lineNum = 1;
+
+    while (!in.atEnd()) {
+        lineNum++;
+        QString line = in.readLine().trimmed();
+        if (line.isEmpty()) continue;
+
+        // 解析 CSV 行（支持引号包围的字段）
+        QStringList fields;
+        bool inQuotes = false;
+        QString currentField;
+        for (int i = 0; i < line.length(); ++i) {
+            QChar ch = line[i];
+            if (ch == '"') {
+                if (inQuotes && i + 1 < line.length() && line[i + 1] == '"') {
+                    currentField += '"';
+                    ++i;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (ch == ',' && !inQuotes) {
+                fields.append(currentField.trimmed());
+                currentField.clear();
+            } else {
+                currentField += ch;
+            }
+        }
+        fields.append(currentField.trimmed());
+
+        // PRD 格式：用户姓名 | 登录账号 | 卡号 | 密码 | 所属组织 | 用户角色 | 密级
+        if (fields.size() < 7) {
+            errorList << QString("第 %1 行: 字段不足（需要7列，实际%2列）").arg(lineNum).arg(fields.size());
+            continue;
+        }
+
+        QString displayName = fields[0].trimmed();
+        QString username = fields[1].trimmed();
+        QString cardNo = fields[2].trimmed();
+        QString password = fields[3].trimmed();
+        QString departmentName = fields[4].trimmed();
+        QString roleName = fields[5].trimmed();
+        QString securityLevelName = fields[6].trimmed();
+
+        // 验证必填字段
+        if (username.isEmpty()) {
+            errorList << QString("第 %1 行: 登录账号不能为空").arg(lineNum);
+            continue;
+        }
+        if (displayName.isEmpty()) {
+            errorList << QString("第 %1 行: 用户姓名不能为空").arg(lineNum);
+            continue;
+        }
+        if (password.isEmpty()) {
+            errorList << QString("第 %1 行: 密码不能为空").arg(lineNum);
+            continue;
+        }
+
+        // 创建用户对象
+        User user;
+        user.setUsername(username);
+        user.setFirstName(displayName);
+        user.setPassword(password);  // 密码将在 service 层进行哈希
+        user.setActive(true);
+
+        // 转换组织名称为 ID
+        int deptId = getDepartmentIdByName(departmentName);
+        if (deptId > 0) {
+            user.setDepartmentId(deptId);
+        }
+
+        // 转换角色名称为 ID
+        int roleId = getRoleIdByName(roleName);
+        if (roleId > 0) {
+            user.setRoleId(roleId);
+        }
+
+        // 卡号暂时跳过（User 模型无此字段，可扩展）
+        Q_UNUSED(cardNo)
+
+        // 密级暂时跳过（User 模型无此字段，可扩展）
+        Q_UNUSED(securityLevelName)
+
+        m_parsedUsers.append(user);
+        successCount++;
+    }
+
+    file.close();
+
+    // 构建导入摘要
+    QString summary;
+    if (successCount > 0) {
+        summary = QString("成功解析 %1 条用户记录").arg(successCount);
+    }
+    if (!errorList.isEmpty()) {
+        if (!summary.isEmpty()) summary += "\n";
+        summary += QString("跳过 %1 条无效记录:\n").arg(errorList.size());
+        summary += errorList.mid(0, 10).join("\n");
+        if (errorList.size() > 10) {
+            summary += QString("\n... 还有 %1 条错误").arg(errorList.size() - 10);
+        }
+    }
+    m_importSummary = summary;
+
+    if (successCount == 0) {
+        QMessageBox::warning(this, "解析失败", "没有找到有效的用户数据\n\n" + summary);
+        return false;
+    }
+
+    return true;
+}
+
+int ImportUsersDialog::getDepartmentIdByName(const QString& name) const
+{
+    if (name.isEmpty()) return 0;
+
+    // 映射组织名称到 ID
+    QMap<QString, int> deptMap;
+    deptMap["总部"] = 1;
+    deptMap["研发部"] = 2;
+    deptMap["市场部"] = 3;
+    deptMap["财务部"] = 4;
+    deptMap["人事部"] = 5;
+
+    return deptMap.value(name, 0);
+}
+
+int ImportUsersDialog::getRoleIdByName(const QString& name) const
+{
+    if (name.isEmpty()) return 0;
+
+    // 映射角色名称到 ID
+    QMap<QString, int> roleMap;
+    roleMap["普通用户"] = 1;
+    roleMap["任务审批员"] = 2;
+    roleMap["任务管理员"] = 3;
+    roleMap["部门管理员"] = 4;
+    roleMap["回收员"] = 5;
+
+    return roleMap.value(name, 0);
+}
+
+QList<User> ImportUsersDialog::getParsedUsers() const
+{
+    return m_parsedUsers;
+}
+
+QString ImportUsersDialog::getImportSummary() const
+{
+    return m_importSummary;
 }
 
 void ImportUsersDialog::onCancelClicked()
@@ -869,8 +1060,62 @@ void UserManagementPage::onBatchImportClicked()
     ImportUsersDialog dialog(this);
 
     if (dialog.exec() == QDialog::Accepted) {
-        QString filePath = dialog.getFilePath();
-        QMessageBox::information(this, "导入", "批量导入功能需要进一步实现Excel解析。\n文件: " + filePath);
+        QList<User> usersToImport = dialog.getParsedUsers();
+
+        if (usersToImport.isEmpty()) {
+            QMessageBox::warning(this, "导入失败", "没有有效的用户数据可导入");
+            return;
+        }
+
+        // 显示解析摘要
+        QString summary = dialog.getImportSummary();
+
+        // 确认导入
+        int ret = QMessageBox::question(this, "确认导入",
+            QString("即将导入 %1 条用户记录，是否继续？\n\n%2").arg(usersToImport.size()).arg(summary),
+            QMessageBox::Yes | QMessageBox::No,
+            QMessageBox::Yes);
+
+        if (ret != QMessageBox::Yes) {
+            return;
+        }
+
+        // 执行批量导入
+        UserManagementService& service = UserManagementService::getInstance();
+
+        int successCount = 0;
+        int failCount = 0;
+        QStringList failedUsers;
+
+        for (const User& user : usersToImport) {
+            // 使用 operator ID 1 (当前管理员)
+            if (service.createUser(user, 1)) {
+                successCount++;
+            } else {
+                failCount++;
+                failedUsers << user.getUsername();
+            }
+        }
+
+        // 显示结果
+        QString resultMsg;
+        if (failCount == 0) {
+            resultMsg = QString("导入成功！共导入 %1 条用户记录").arg(successCount);
+            QMessageBox::information(this, "导入完成", resultMsg);
+        } else {
+            resultMsg = QString("导入完成\n成功: %1 条\n失败: %2 条").arg(successCount).arg(failCount);
+            if (failedUsers.size() <= 10) {
+                resultMsg += "\n\n失败的用户:\n" + failedUsers.join("\n");
+            } else {
+                resultMsg += "\n\n部分失败用户:\n" + failedUsers.mid(0, 10).join("\n") + QString("\n... 还有 %1 个").arg(failedUsers.size() - 10);
+            }
+            QMessageBox::warning(this, "导入完成", resultMsg);
+        }
+
+        // 刷新表格
+        if (successCount > 0) {
+            loadData();
+        }
     }
 }
 

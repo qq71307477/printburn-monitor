@@ -3,6 +3,8 @@
 #include <QSqlError>
 #include <QDebug>
 #include <QFile>
+#include <QRandomGenerator>
+#include "qt_compat.h"
 
 DatabaseManager::DatabaseManager(const QString& db_path) {
     db_ = QSqlDatabase::addDatabase("QSQLITE");
@@ -21,6 +23,41 @@ DatabaseManager::~DatabaseManager() {
 
 #include <QCryptographicHash>
 #include <QVariant>
+
+// 本地密码哈希辅助函数（避免循环依赖）
+namespace {
+    QString generateLocalSalt(int length = 16)
+    {
+        QByteArray salt;
+        salt.resize(length);
+
+        for (int i = 0; i < length; ++i) {
+            salt[i] = static_cast<char>(QRandomGenerator::global()->bounded(256));
+        }
+
+        return QString(salt.toBase64());
+    }
+
+    QString hashLocalPassword(const QString& password, const QString& salt, int iterations = 10000)
+    {
+        QByteArray saltBytes = QByteArray::fromBase64(salt.toUtf8());
+        QByteArray hash = password.toUtf8() + saltBytes;
+
+        // 多次迭代哈希
+        for (int i = 0; i < iterations; ++i) {
+            hash = QCryptographicHash::hash(hash, QCryptographicHash::Sha256);
+        }
+
+        return QString(hash.toHex());
+    }
+
+    QString createLocalPasswordHash(const QString& password)
+    {
+        QString salt = generateLocalSalt(16);
+        QString hash = hashLocalPassword(password, salt, 10000);
+        return QString("$pbkdf2$10000$%1$%2").arg(salt, hash);
+    }
+}
 
 bool DatabaseManager::initialize() {
     // 启用 SQLite 性能优化
@@ -241,6 +278,8 @@ bool DatabaseManager::initialize() {
             details TEXT,
             ip_address TEXT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            prev_hash TEXT,
+            current_hash TEXT,
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
 
@@ -357,8 +396,8 @@ bool DatabaseManager::initialize() {
 bool DatabaseManager::populate_default_data() {
     begin_transaction();
 
-    // 默认密码 "123456" 的 SHA256 哈希值
-    QString default_password_hash = QString(QCryptographicHash::hash(QByteArray("123456"), QCryptographicHash::Sha256).toHex());
+    // 默认密码 "123456" 使用 PBKDF2 风格哈希
+    QString default_password_hash = createLocalPasswordHash("123456");
 
     // 1. 创建角色
     QSqlQuery role_query(db_);

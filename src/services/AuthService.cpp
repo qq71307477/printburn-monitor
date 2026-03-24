@@ -7,6 +7,8 @@
 #include <QCryptographicHash>
 #include <QRegularExpression>
 #include <QStringList>
+#include <QDateTime>
+#include <QRandomGenerator>
 #include <mutex>
 
 // 静态实例
@@ -29,16 +31,79 @@ AuthService::~AuthService()
 {
 }
 
+// 生成随机 salt
+QString AuthService::generateSalt(int length)
+{
+    QByteArray salt;
+    salt.resize(length);
+
+    for (int i = 0; i < length; ++i) {
+        salt[i] = static_cast<char>(QRandomGenerator::global()->bounded(256));
+    }
+
+    return QString(salt.toBase64());
+}
+
+// 使用 PBKDF2 风格的多次迭代 SHA256 哈希
+QString AuthService::hashPassword(const QString& password, const QString& salt, int iterations)
+{
+    QByteArray saltBytes = QByteArray::fromBase64(salt.toUtf8());
+    QByteArray hash = password.toUtf8() + saltBytes;
+
+    // 多次迭代哈希
+    for (int i = 0; i < iterations; ++i) {
+        hash = QCryptographicHash::hash(hash, QCryptographicHash::Sha256);
+    }
+
+    return QString(hash.toHex());
+}
+
+// 创建完整的密码存储格式：$pbkdf2$iterations$salt$hash
+QString AuthService::createPasswordHash(const QString& password)
+{
+    QString salt = generateSalt(16);
+    QString hash = hashPassword(password, salt, 10000);
+    return QString("$pbkdf2$10000$%1$%2").arg(salt, hash);
+}
+
+// 验证密码
+bool AuthService::verifyPassword(const QString& password, const QString& storedHash)
+{
+    // 检查是否是新格式
+    if (storedHash.startsWith("$pbkdf2$")) {
+        QStringList parts = storedHash.split('$', SPLIT_SKIP_EMPTY);
+        if (parts.size() != 4) {
+            qWarning() << "Invalid password hash format";
+            return false;
+        }
+
+        // parts[0] = "pbkdf2", parts[1] = iterations, parts[2] = salt, parts[3] = hash
+        bool ok = false;
+        int iterations = parts[1].toInt(&ok);
+        if (!ok || iterations <= 0) {
+            qWarning() << "Invalid iterations in password hash";
+            return false;
+        }
+
+        QString salt = parts[2];
+        QString expectedHash = parts[3];
+        QString computedHash = hashPassword(password, salt, iterations);
+
+        return computedHash == expectedHash;
+    }
+
+    // 兼容旧格式：纯 SHA256 哈希（用于迁移）
+    QString legacyHash = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
+    return legacyHash == storedHash;
+}
+
 bool AuthService::authenticate(const QString &username, const QString &password)
 {
     // 使用Repository访问数据库验证用户
     UserRepository userRepository;
 
-    // 加密密码进行比较
-    QString hashedPassword = QString(QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Sha256).toHex());
-
     User user = userRepository.findByUsername(username);
-    if (user.getId() > 0 && user.getPassword() == hashedPassword) { // 用户存在且密码匹配
+    if (user.getId() > 0 && verifyPassword(password, user.getPassword())) { // 用户存在且密码匹配
         m_currentUser = user;
         m_isLoggedIn = true;
 
@@ -90,7 +155,7 @@ bool AuthService::changePassword(const QString &username, const QString &oldPass
     }
 
     UserRepository userRepository;
-    QString hashedNewPassword = QString(QCryptographicHash::hash(newPassword.toUtf8(), QCryptographicHash::Sha256).toHex());
+    QString hashedNewPassword = createPasswordHash(newPassword);
 
     User user = userRepository.findByUsername(username);
     user.setPassword(hashedNewPassword);
