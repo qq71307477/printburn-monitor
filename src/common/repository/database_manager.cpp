@@ -355,7 +355,7 @@ bool DatabaseManager::populate_default_data() {
     if (!user_role_query.exec()) { rollback_transaction(); return false; }
 
     return commit_transaction();
-
+}
 
 bool DatabaseManager::execute_query(const QString& sql) {
     QSqlQuery query(db_);

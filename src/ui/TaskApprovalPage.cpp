@@ -24,6 +24,10 @@
 #include <QButtonGroup>
 #include <QtAlgorithms>
 #include <QInputDialog>
+#include <QApplication>
+#include <QFileDialog>
+#include <QTextStream>
+#include <QProgressDialog>
 
 TaskApprovalPage::TaskApprovalPage(QWidget *parent)
     : QWidget(parent)
@@ -32,6 +36,7 @@ TaskApprovalPage::TaskApprovalPage(QWidget *parent)
     , m_totalCount(0)
     , m_sortColumn(-1)
     , m_sortOrder(Qt::AscendingOrder)
+    , m_useServerSidePagination(true)
 {
     setupUI();
 }
@@ -55,8 +60,8 @@ void TaskApprovalPage::setupUI()
 
     m_layout->addStretch();
 
-    // Load initial data
-    refreshTasks();
+    // Load initial data (使用服务端分页)
+    refreshTasksPaged();
 }
 
 void TaskApprovalPage::setupFilterControls()
@@ -161,6 +166,7 @@ void TaskApprovalPage::setupTaskList()
     connect(m_rejectButton, &QPushButton::clicked, this, &TaskApprovalPage::rejectSelected);
     connect(m_batchApproveButton, &QPushButton::clicked, this, &TaskApprovalPage::batchApprove);
     connect(m_batchRejectButton, &QPushButton::clicked, this, &TaskApprovalPage::batchReject);
+    connect(m_exportButton, &QPushButton::clicked, this, &TaskApprovalPage::exportTasks);
 
     m_actionLayout->addWidget(m_approveButton);
     m_actionLayout->addWidget(m_rejectButton);
@@ -198,7 +204,11 @@ void TaskApprovalPage::setupPagination()
         if (m_currentPage > 1) {
             m_currentPage--;
             m_pageSpinBox->setValue(m_currentPage);
-            refreshTasks();
+            if (m_useServerSidePagination) {
+                refreshTasksPaged();
+            } else {
+                refreshTasks();
+            }
         }
     });
 
@@ -206,14 +216,22 @@ void TaskApprovalPage::setupPagination()
         if (m_currentPage < (m_totalCount + m_pageSize - 1) / m_pageSize) {
             m_currentPage++;
             m_pageSpinBox->setValue(m_currentPage);
-            refreshTasks();
+            if (m_useServerSidePagination) {
+                refreshTasksPaged();
+            } else {
+                refreshTasks();
+            }
         }
     });
 
     connect(m_pageSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), [this](int value) {
         if (value >= 1 && value <= (m_totalCount + m_pageSize - 1) / m_pageSize) {
             m_currentPage = value;
-            refreshTasks();
+            if (m_useServerSidePagination) {
+                refreshTasksPaged();
+            } else {
+                refreshTasks();
+            }
         }
     });
 
@@ -221,7 +239,11 @@ void TaskApprovalPage::setupPagination()
         m_pageSize = m_pageSizeCombo->currentData().toInt();
         m_currentPage = 1;
         m_pageSpinBox->setValue(m_currentPage);
-        refreshTasks();
+        if (m_useServerSidePagination) {
+            refreshTasksPaged();
+        } else {
+            refreshTasks();
+        }
     });
 
     m_paginationLayout->addWidget(m_pageInfoLabel);
@@ -239,6 +261,11 @@ void TaskApprovalPage::setupPagination()
 
 void TaskApprovalPage::refreshTasks()
 {
+    if (m_useServerSidePagination) {
+        refreshTasksPaged();
+        return;
+    }
+
     // Clear existing items
     m_taskTable->setRowCount(0);
 
@@ -255,6 +282,47 @@ void TaskApprovalPage::refreshTasks()
         sortTasks(m_sortColumn);
     } else {
         populateTable(m_filteredTasks);
+    }
+}
+
+void TaskApprovalPage::refreshTasksPaged()
+{
+    // 显示加载状态
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+
+    // Clear existing items
+    m_taskTable->setRowCount(0);
+
+    // 使用 TaskRepository 的分页查询
+    TaskRepository taskRepo;
+    QString searchText = m_searchEdit->text().trimmed();
+    QString taskType = m_taskTypeCombo->currentData().toString();
+    QString status = m_statusCombo->currentData().toString();
+    QString sortBy = getSortColumnName();
+    bool sortDesc = (m_sortOrder == Qt::DescendingOrder);
+
+    TaskRepository::PagedResult result = taskRepo.findPendingApprovalTasksPaged(
+        "", searchText, taskType, status, m_currentPage, m_pageSize, sortBy, sortDesc);
+
+    m_filteredTasks = result.tasks;
+    m_totalCount = result.totalCount;
+
+    populateTablePaged(result.tasks, result.totalCount, result.totalPages);
+
+    // 恢复光标
+    QApplication::restoreOverrideCursor();
+}
+
+QString TaskApprovalPage::getSortColumnName() const
+{
+    switch (m_sortColumn) {
+    case 1: return "id";
+    case 2: return "type";
+    case 3: return "title";
+    case 5: return "priority";
+    case 6: return "approval_status";
+    case 7: return "created_at";
+    default: return "created_at";
     }
 }
 
@@ -321,81 +389,70 @@ void TaskApprovalPage::populateTable(const QList<Task> &tasks)
     m_pageSpinBox->setMaximum(totalPages);
 }
 
+void TaskApprovalPage::populateTablePaged(const QList<Task> &tasks, int totalCount, int totalPages)
+{
+    m_taskTable->setRowCount(0);
+
+    for (int i = 0; i < tasks.size(); ++i) {
+        const Task &task = tasks[i];
+        int row = m_taskTable->rowCount();
+        m_taskTable->insertRow(row);
+
+        // Checkbox column
+        QCheckBox *checkBox = new QCheckBox();
+        checkBox->setProperty("taskId", task.getId());
+        m_taskTable->setCellWidget(row, 0, checkBox);
+
+        // Task ID
+        m_taskTable->setItem(row, 1, new QTableWidgetItem(QString::number(task.getId())));
+
+        // Task type
+        m_taskTable->setItem(row, 2, new QTableWidgetItem(getTaskTypeName(task.getType())));
+
+        // Document title
+        m_taskTable->setItem(row, 3, new QTableWidgetItem(task.getTitle()));
+
+        // Applicant - 使用缓存的用户名
+        m_taskTable->setItem(row, 4, new QTableWidgetItem(getUserName(task.getUserId())));
+
+        // Priority
+        m_taskTable->setItem(row, 5, new QTableWidgetItem(getPriorityName(task.getPriority())));
+
+        // Status
+        m_taskTable->setItem(row, 6, new QTableWidgetItem(getStatusDisplayName(task.getApprovalStatus())));
+
+        // Apply time
+        m_taskTable->setItem(row, 7, new QTableWidgetItem(task.getCreateTime().toString("yyyy-MM-dd hh:mm:ss")));
+
+        // Action column
+        QWidget *actionWidget = new QWidget();
+        QHBoxLayout *actionLayout = new QHBoxLayout(actionWidget);
+        QPushButton *viewBtn = new QPushButton("查看", this);
+        QPushButton *detailBtn = new QPushButton("详情", this);
+        actionLayout->addWidget(viewBtn);
+        actionLayout->addWidget(detailBtn);
+        actionLayout->setContentsMargins(5, 2, 5, 2);
+        actionLayout->setSpacing(2);
+        actionWidget->setLayout(actionLayout);
+        m_taskTable->setCellWidget(row, 8, actionWidget);
+    }
+
+    // Update pagination info
+    if (totalPages < 1) totalPages = 1;
+    m_pageInfoLabel->setText(QString("共 %1 条记录，第 %2/%3 页")
+                                .arg(totalCount)
+                                .arg(m_currentPage)
+                                .arg(totalPages));
+    m_totalPagesLabel->setText(QString::number(totalPages));
+    m_pageSpinBox->setMaximum(totalPages);
+}
+
 void TaskApprovalPage::filterTasks()
 {
-    // Get filter criteria
-    QString searchText = m_searchEdit->text().trimmed().toLower();
-    QString taskType = m_taskTypeCombo->currentData().toString().toUpper();
-    QString status = m_statusCombo->currentData().toString().toUpper();
-    QString priority = m_priorityCombo->currentData().toString().toUpper();
-    QDate startDate = m_startDateEdit->date();
-    QDate endDate = m_endDateEdit->date();
-
-    // Filter tasks
-    m_filteredTasks.clear();
-
-    for (const Task &task : m_allTasks) {
-        bool match = true;
-
-        // Search filter
-        if (!searchText.isEmpty()) {
-            if (!task.getTitle().toLower().contains(searchText) &&
-                !task.getDescription().toLower().contains(searchText)) {
-                match = false;
-            }
-        }
-
-        // Task type filter
-        if (match && !taskType.isEmpty()) {
-            if (task.getType().toUpper() != taskType) {
-                match = false;
-            }
-        }
-
-        // Status filter (approval status)
-        if (match && !status.isEmpty()) {
-            QString approvalStatus = task.getApprovalStatus().toUpper();
-            if (status == "PENDING" && approvalStatus != "PENDING") {
-                match = false;
-            } else if (status == "APPROVED" && approvalStatus != "APPROVED") {
-                match = false;
-            } else if (status == "REJECTED" && approvalStatus != "REJECTED") {
-                match = false;
-            }
-        }
-
-        // Priority filter
-        if (match && !priority.isEmpty()) {
-            if (task.getPriority().toUpper() != priority) {
-                match = false;
-            }
-        }
-
-        // Date range filter
-        if (match) {
-            QDate taskDate = task.getCreateTime().date();
-            if (taskDate < startDate || taskDate > endDate) {
-                match = false;
-            }
-        }
-
-        if (match) {
-            m_filteredTasks.append(task);
-        }
-    }
-
-    m_totalCount = m_filteredTasks.size();
+    // 重置到第一页并使用服务端分页刷新
     m_currentPage = 1;
     m_pageSpinBox->setValue(1);
-
-    // Apply current sort if any
-    if (m_sortColumn >= 0) {
-        sortTasks(m_sortColumn);
-    } else {
-        populateTable(m_filteredTasks);
-    }
-
-    QMessageBox::information(this, "提示", QString("已应用筛选条件，共找到 %1 条记录").arg(m_totalCount));
+    refreshTasksPaged();
 }
 
 void TaskApprovalPage::sortTasks(int column)
@@ -408,7 +465,13 @@ void TaskApprovalPage::sortTasks(int column)
         m_sortOrder = Qt::AscendingOrder;
     }
 
-    // Sort the filtered tasks
+    // 使用服务端分页重新加载数据（排序在服务端完成）
+    if (m_useServerSidePagination) {
+        refreshTasksPaged();
+        return;
+    }
+
+    // 旧版本：客户端排序
     std::sort(m_filteredTasks.begin(), m_filteredTasks.end(), [this, column](const Task &a, const Task &b) {
         bool lessThan = false;
 
@@ -491,7 +554,11 @@ void TaskApprovalPage::approveSelected()
     QMessageBox::information(this, "提示", message);
 
     // Refresh the task list
-    refreshTasks();
+    if (m_useServerSidePagination) {
+        refreshTasksPaged();
+    } else {
+        refreshTasks();
+    }
 }
 
 void TaskApprovalPage::rejectSelected()
@@ -549,7 +616,11 @@ void TaskApprovalPage::rejectSelected()
     QMessageBox::information(this, "提示", message);
 
     // Refresh the task list
-    refreshTasks();
+    if (m_useServerSidePagination) {
+        refreshTasksPaged();
+    } else {
+        refreshTasks();
+    }
 }
 
 void TaskApprovalPage::batchApprove()
@@ -592,7 +663,11 @@ void TaskApprovalPage::batchApprove()
     QMessageBox::information(this, "提示", message);
 
     // Refresh the task list
-    refreshTasks();
+    if (m_useServerSidePagination) {
+        refreshTasksPaged();
+    } else {
+        refreshTasks();
+    }
 }
 
 void TaskApprovalPage::batchReject()
@@ -644,7 +719,11 @@ void TaskApprovalPage::batchReject()
     QMessageBox::information(this, "提示", message);
 
     // Refresh the task list
-    refreshTasks();
+    if (m_useServerSidePagination) {
+        refreshTasksPaged();
+    } else {
+        refreshTasks();
+    }
 }
 
 QString TaskApprovalPage::getTaskTypeName(const QString &type) const
@@ -695,10 +774,130 @@ QString TaskApprovalPage::getStatusDisplayName(const QString &status) const
 
 QString TaskApprovalPage::getUserName(int userId) const
 {
+    // 先从缓存获取
+    QString cachedName = UserNameCache::getUserName(userId);
+    if (!cachedName.isEmpty()) {
+        return cachedName;
+    }
+
+    // 缓存未命中，查询数据库
     UserRepository userRepo;
     User user = userRepo.findById(userId);
     if (user.getId() > 0) {
-        return user.getUsername();
+        QString username = user.getUsername();
+        // 存入缓存
+        UserNameCache::cacheUserName(userId, username);
+        return username;
     }
     return QString("用户%1").arg(userId);
+}
+
+// UserNameCache 静态成员实现
+QCache<int, QString> UserNameCache::s_cache(MAX_CACHE_SIZE);
+
+QString UserNameCache::getUserName(int userId)
+{
+    if (s_cache.contains(userId)) {
+        return *s_cache.object(userId);
+    }
+    return QString();
+}
+
+void UserNameCache::cacheUserName(int userId, const QString& username)
+{
+    s_cache.insert(userId, new QString(username));
+}
+
+void UserNameCache::preloadUserNames()
+{
+    UserRepository userRepo;
+    QList<User> users = userRepo.findAll();
+    for (const User& user : users) {
+        cacheUserName(user.getId(), user.getUsername());
+    }
+}
+
+void UserNameCache::clear()
+{
+    s_cache.clear();
+}
+
+void TaskApprovalPage::exportTasks()
+{
+    // 获取保存文件路径
+    QString fileName = QFileDialog::getSaveFileName(this, "导出任务列表",
+        QString("任务列表_%1.csv").arg(QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss")),
+        "CSV 文件 (*.csv);;Excel 文件 (*.xlsx)");
+
+    if (fileName.isEmpty()) {
+        return;
+    }
+
+    // 显示进度对话框
+    QProgressDialog progress("正在导出...", "取消", 0, m_totalCount, this);
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(500);
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this, "错误", "无法创建导出文件");
+        return;
+    }
+
+    QTextStream out(&file);
+    out.setCodec("UTF-8");
+    out.setGenerateByteOrderMark(true);  // 添加 BOM 以支持中文
+
+    // 写入表头
+    out << "任务ID,任务类型,文档标题,申请人,优先级,状态,申请时间\n";
+
+    // 使用分页方式导出，避免内存溢出
+    int exportedCount = 0;
+    int page = 1;
+    int pageSize = 100;  // 每次导出100条
+    TaskRepository taskRepo;
+
+    while (exportedCount < m_totalCount) {
+        if (progress.wasCanceled()) {
+            break;
+        }
+
+        QString searchText = m_searchEdit->text().trimmed();
+        QString taskType = m_taskTypeCombo->currentData().toString();
+        QString status = m_statusCombo->currentData().toString();
+
+        TaskRepository::PagedResult result = taskRepo.findPendingApprovalTasksPaged(
+            "", searchText, taskType, status, page, pageSize, "created_at", true);
+
+        for (const Task &task : result.tasks) {
+            out << QString("%1,%2,%3,%4,%5,%6,%7\n")
+                   .arg(task.getId())
+                   .arg(getTaskTypeName(task.getType()))
+                   .arg(task.getTitle().replace(",", "，"))  // 替换逗号避免CSV格式问题
+                   .arg(getUserName(task.getUserId()))
+                   .arg(getPriorityName(task.getPriority()))
+                   .arg(getStatusDisplayName(task.getApprovalStatus()))
+                   .arg(task.getCreateTime().toString("yyyy-MM-dd hh:mm:ss"));
+
+            exportedCount++;
+            progress.setValue(exportedCount);
+
+            if (progress.wasCanceled()) {
+                break;
+            }
+        }
+
+        page++;
+    }
+
+    file.close();
+    progress.setValue(m_totalCount);
+
+    if (!progress.wasCanceled()) {
+        QMessageBox::information(this, "导出完成",
+            QString("已成功导出 %1 条记录到\n%2").arg(exportedCount).arg(fileName));
+    } else {
+        QMessageBox::information(this, "导出取消",
+            QString("已导出 %1 条记录").arg(exportedCount));
+    }
 }

@@ -21,10 +21,23 @@
 #include <QRadioButton>
 #include <QButtonGroup>
 #include <QList>
+#include <QCache>
 
 // Forward declarations
 class TaskService;
 class Task;
+
+// 用户名缓存（类级别）
+class UserNameCache {
+private:
+    static QCache<int, QString> s_cache;
+    static const int MAX_CACHE_SIZE = 500;
+public:
+    static QString getUserName(int userId);
+    static void cacheUserName(int userId, const QString& username);
+    static void preloadUserNames();  // 预加载所有用户名
+    static void clear();
+};
 
 class TaskApprovalPage : public QWidget
 {
@@ -35,12 +48,14 @@ public:
 
 private slots:
     void refreshTasks();
+    void refreshTasksPaged();  // 服务端分页版本
     void filterTasks();
     void sortTasks(int column);
     void approveSelected();
     void rejectSelected();
     void batchApprove();
     void batchReject();
+    void exportTasks();  // 导出功能
 
 private:
     void setupUI();
@@ -48,10 +63,12 @@ private:
     void setupTaskList();
     void setupPagination();
     void populateTable(const QList<Task> &tasks);
+    void populateTablePaged(const QList<Task> &tasks, int totalCount, int totalPages);
     QString getTaskTypeName(const QString &type) const;
     QString getPriorityName(const QString &priority) const;
     QString getStatusDisplayName(const QString &status) const;
     QString getUserName(int userId) const;
+    QString getSortColumnName() const;
 
     // UI Components
     QVBoxLayout *m_layout;
@@ -99,6 +116,7 @@ private:
     Qt::SortOrder m_sortOrder;
     QList<Task> m_allTasks;
     QList<Task> m_filteredTasks;
+    bool m_useServerSidePagination;  // 使用服务端分页标志
 };
 
 #endif // TASKAPPROVALPAGE_H

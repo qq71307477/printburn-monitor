@@ -242,50 +242,33 @@ void PersonalHomePage::loadStatistics()
 
     TaskRepository taskRepo;
 
-    // 获取打印任务列表
-    QList<Task> printTasks = taskRepo.findByUserId(userId, "PRINT");
-    int printCount = printTasks.size();
+    // 使用 count 方法代替加载全部数据（性能优化）
+    int printCount = taskRepo.countByUserId(userId, "PRINT");
     m_printCountLabel->setText(QString::number(printCount));
 
     // 计算打印任务完成率
-    int printCompleted = 0;
-    for (const Task &task : printTasks) {
-        if (task.getStatus() == "COMPLETED" || task.getStatus() == "APPROVED") {
-            printCompleted++;
-        }
-    }
+    int printCompleted = taskRepo.countByUserId(userId, "PRINT", "COMPLETED") +
+                         taskRepo.countByUserId(userId, "PRINT", "APPROVED");
     int printProgress = printCount > 0 ? (printCompleted * 100 / printCount) : 0;
     m_printProgress->setValue(printProgress);
 
-    // 获取刻录任务列表
-    QList<Task> burnTasks = taskRepo.findByUserId(userId, "BURN");
-    int burnCount = burnTasks.size();
+    // 获取刻录任务数量
+    int burnCount = taskRepo.countByUserId(userId, "BURN");
     m_burnCountLabel->setText(QString::number(burnCount));
 
     // 计算刻录任务完成率
-    int burnCompleted = 0;
-    for (const Task &task : burnTasks) {
-        if (task.getStatus() == "COMPLETED" || task.getStatus() == "APPROVED") {
-            burnCompleted++;
-        }
-    }
+    int burnCompleted = taskRepo.countByUserId(userId, "BURN", "COMPLETED") +
+                        taskRepo.countByUserId(userId, "BURN", "APPROVED");
     int burnProgress = burnCount > 0 ? (burnCompleted * 100 / burnCount) : 0;
     m_burnProgress->setValue(burnProgress);
 
     // 获取待审批任务数量
-    QList<Task> pendingTasks = taskRepo.findPendingApprovalTasks("");
-    int pendingCount = pendingTasks.size();
+    int pendingCount = taskRepo.countPendingApproval();
     m_pendingApprovalLabel->setText(QString::number(pendingCount));
 
-    // 计算已审批任务数量（当前用户的任务中被审批的）
-    int approvedCount = 0;
-    QList<Task> allUserTasks = taskRepo.findByUserId(userId);
-    for (const Task &task : allUserTasks) {
-        QString approvalStatus = task.getApprovalStatus();
-        if (approvalStatus == "APPROVED" || approvalStatus == "REJECTED") {
-            approvedCount++;
-        }
-    }
+    // 计算已审批任务数量
+    int approvedCount = taskRepo.countByUserId(userId) -
+                        taskRepo.countByUserId(userId, QString(), "PENDING");
     m_approvalCountLabel->setText(QString("已审批: %1").arg(approvedCount));
 }
 

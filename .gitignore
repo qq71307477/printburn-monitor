@@ -43,4 +43,4 @@ ui_*
 # macOS
 .DS_Store
 .AppleDouble
-.LSOverride
+.LSOverride.claude/

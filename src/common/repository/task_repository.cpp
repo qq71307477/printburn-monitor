@@ -1,6 +1,7 @@
 #include "task_repository.h"
 #include <QVariant>
 #include <QDateTime>
+#include <QCache>
 
 // Static member initialization
 DatabaseManager* TaskRepository::default_db_manager_ = nullptr;
