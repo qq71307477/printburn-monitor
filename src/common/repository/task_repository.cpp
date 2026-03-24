@@ -929,10 +929,10 @@ void UserNameCache::clear() {
 
 void UserNameCache::preloadUserNames() {
     // 预加载所有用户名到缓存
-    DatabaseManager* db = DatabaseManager::instance();
-    if (!db) return;
+    // 使用默认数据库管理器
+    if (!default_db_manager_) return;
 
-    QSqlQuery query(db->get_connection());
+    QSqlQuery query(default_db_manager_->get_connection());
     if (query.exec("SELECT id, username FROM users WHERE is_active = 1")) {
         while (query.next()) {
             int userId = query.value(0).toInt();
