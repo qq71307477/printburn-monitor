@@ -134,7 +134,7 @@ bool ProxyApproverService::isProxyActive(int proxyId) const
     return true;
 }
 
-bool ProxyApproverService::enableProxy(int proxyId, bool enabled)
+bool ProxyApproverService::enableProxy(int proxyId)
 {
     ProxyApproverRepository repo;
     ProxyApprover proxy = repo.findById(proxyId);
@@ -143,7 +143,22 @@ bool ProxyApproverService::enableProxy(int proxyId, bool enabled)
         return false;
     }
 
-    proxy.setEnabled(enabled);
+    proxy.setEnabled(true);
+    proxy.setUpdatedAt(QDateTime::currentDateTime());
+
+    return repo.update(proxy);
+}
+
+bool ProxyApproverService::disableProxy(int proxyId)
+{
+    ProxyApproverRepository repo;
+    ProxyApprover proxy = repo.findById(proxyId);
+
+    if (proxy.getId() <= 0) {
+        return false;
+    }
+
+    proxy.setEnabled(false);
     proxy.setUpdatedAt(QDateTime::currentDateTime());
 
     return repo.update(proxy);

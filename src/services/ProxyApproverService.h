@@ -21,7 +21,8 @@ public:
     QList<ProxyApprover> getProxiesByProxy(int proxyUserId) const;
     ProxyApprover getActiveProxyForTask(int ownerUserId, const QString& taskType, int securityLevelId) const;
     bool isProxyActive(int proxyId) const;
-    bool enableProxy(int proxyId, bool enabled);
+    bool enableProxy(int proxyId);  // 启用代理
+    bool disableProxy(int proxyId); // 禁用代理
 
     // Additional convenience methods
     bool createProxy(ProxyApprover& proxy);

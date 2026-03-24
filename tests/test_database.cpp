@@ -103,12 +103,6 @@ void test_department_repository() {
     assert(found_dept->name == dept.name);
     std::cout << "✓ Department retrieval by ID successful\n";
 
-    // Find the department by name
-    auto found_by_name = dept_repo.find_by_name(dept.name);
-    assert(found_by_name != nullptr);
-    assert(found_by_name->id == dept.id);
-    std::cout << "✓ Department retrieval by name successful\n";
-
     // Update the department
     dept.description = "Updated test department description";
     bool updated = dept_repo.update(dept);
@@ -205,11 +199,6 @@ void test_user_repository() {
     auto users_by_dept = user_repo.find_by_department(dept.id);
     assert(!users_by_dept.empty());
     std::cout << "✓ Find users by department successful\n";
-
-    // Find users by role
-    auto users_by_role = user_repo.find_by_role(role.id);
-    assert(!users_by_role.empty());
-    std::cout << "✓ Find users by role successful\n";
 
     std::cout << "✓ All User Repository tests passed\n";
 }

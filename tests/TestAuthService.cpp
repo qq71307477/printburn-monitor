@@ -10,7 +10,7 @@ void TestAuthService::initTestCase()
     User testUser;
     testUser.setUsername("testuser");
     testUser.setPassword(QString(QCryptographicHash::hash("testpass", QCryptographicHash::Sha256).toHex()));
-    testUser.setRole("USER");
+    testUser.setRoleId(1);  // 使用 setRoleId 而非 setRole
     testUser.setStatus("ACTIVE");
     userRepository->create(testUser);
 }
