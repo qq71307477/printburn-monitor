@@ -902,36 +902,6 @@ bool TaskRepository::updateSerialNumber(int taskId, const QString& serialNumber)
     return query.exec();
 }
 
-// 用户名缓存实现
-namespace {
-    QCache<int, QString>& getUserCache() {
-        static QCache<int, QString> cache(500);
-        return cache;
-    }
-}
-
-QString UserNameCache::getUserName(int userId) {
-    auto& cache = getUserCache();
-    if (cache.contains(userId)) {
-        return *cache.object(userId);
-    }
-    return QString();
-}
-
-void UserNameCache::cacheUserName(int userId, const QString& username) {
-    auto& cache = getUserCache();
-    cache.insert(userId, new QString(username));
-}
-
-void UserNameCache::clear() {
-    getUserCache().clear();
-}
-
-void UserNameCache::preloadUserNames() {
-    // 使用惰性加载策略，预加载功能暂不实现
-    // 用户名会在实际使用时通过 getUserName 从数据库加载并缓存
-}
-
 // 分页查询方法实现
 TaskRepository::PagedResult TaskRepository::findByUserIdPaged(int userId, const QString& taskType, const QString& status,
                                                                int page, int pageSize, const QString& sortBy, bool sortDesc) {
