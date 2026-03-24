@@ -16,6 +16,7 @@
 #include <QCheckBox>
 #include <QMessageBox>
 #include <QDateTimeEdit>
+#include <QTextEdit>
 #include "models/role_model.h"
 #include "services/RoleManagementService.h"
 
@@ -50,6 +51,7 @@ private:
     QCheckBox* m_activeCheck;
     QTreeWidget* m_permissionTree;
     QTextEdit* m_descriptionEdit;
+};
 
 // Main Role Management Page
 class RoleManagementPage : public QWidget

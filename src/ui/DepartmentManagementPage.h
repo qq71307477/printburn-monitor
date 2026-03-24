@@ -1,6 +1,8 @@
 #ifndef DEPARTMENTMANAGEMENTPAGE_H
 #define DEPARTMENTMANAGEMENTPAGE_H
 
+#include <memory>
+#include <vector>
 #include <QWidget>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
