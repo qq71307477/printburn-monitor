@@ -3,6 +3,7 @@
 #include "src/common/repository/role_repository.h"
 #include "models/user_model.h"
 #include "common/PluginManager.h"
+#include "qt_compat.h"
 #include <QCryptographicHash>
 #include <QRegularExpression>
 #include <QStringList>
@@ -133,7 +134,7 @@ bool AuthService::hasPermission(const QString &permission) const
         }
 
         // 权限字符串格式为逗号分隔的权限列表，如 "CREATE_USER,UPDATE_USER,DELETE_USER"
-        QStringList permissionList = permissionsStr.split(',', QString::SkipEmptyParts);
+        QStringList permissionList = permissionsStr.split(',', SPLIT_SKIP_EMPTY);
         for (QString &perm : permissionList) {
             perm = perm.trimmed();
             if (perm == permission || perm == "*") {
@@ -201,7 +202,7 @@ bool AuthService::validateUserPermission(int userId, const QString &permission)
         }
 
         // 权限字符串格式为逗号分隔的权限列表
-        QStringList permissionList = permissionsStr.split(',', QString::SkipEmptyParts);
+        QStringList permissionList = permissionsStr.split(',', SPLIT_SKIP_EMPTY);
         for (QString &perm : permissionList) {
             perm = perm.trimmed();
             if (perm == permission || perm == "*") {

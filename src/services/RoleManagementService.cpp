@@ -1,6 +1,7 @@
 #include "RoleManagementService.h"
 #include "src/common/repository/role_repository.h"
 #include "src/common/repository/user_repository.h"
+#include "qt_compat.h"
 #include <QDateTime>
 #include <mutex>
 
@@ -218,7 +219,7 @@ QStringList RoleManagementService::getRolePermissions(int roleId) const
         return QStringList();
     }
 
-    return role.getPermissions().split(",", QString::SkipEmptyParts);
+    return role.getPermissions().split(",", SPLIT_SKIP_EMPTY);
 }
 
 bool RoleManagementService::addUserToRole(int userId, int roleId, int operatorId)

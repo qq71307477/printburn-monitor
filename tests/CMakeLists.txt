@@ -29,6 +29,7 @@ set(REPOSITORY_SOURCES
 # 定义服务源文件 (用于 TestAuthService)
 set(SERVICE_SOURCES
     ${CMAKE_SOURCE_DIR}/src/services/AuthService.cpp
+    ${CMAKE_SOURCE_DIR}/src/common/PluginManager.cpp
 )
 
 # ============================================================================

@@ -1,4 +1,5 @@
 #include "RoleManagementPage.h"
+#include "qt_compat.h"
 #include <QHeaderView>
 #include <QDateTime>
 #include <QTextEdit>
@@ -182,7 +183,7 @@ void RoleEditDialog::setupPermissionTree()
 
     // Load current permissions if editing
     if (m_isEdit) {
-        QStringList perms = m_role.getPermissions().split(",", QString::SkipEmptyParts);
+        QStringList perms = m_role.getPermissions().split(",", SPLIT_SKIP_EMPTY);
         for (int i = 0; i < m_permissionTree->topLevelItemCount(); ++i) {
             checkPermissionRecursive(m_permissionTree->topLevelItem(i), perms);
         }
