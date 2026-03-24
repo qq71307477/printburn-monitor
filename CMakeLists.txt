@@ -81,6 +81,12 @@ list(APPEND SOURCES
     src/ui/SecurityPolicyConfigPage.cpp
     src/ui/ProxyApproverConfigPage.h
     src/ui/ProxyApproverConfigPage.cpp
+    src/ui/LoginLogPage.h
+    src/ui/LoginLogPage.cpp
+    src/ui/OperationLogPage.h
+    src/ui/OperationLogPage.cpp
+    src/ui/DeviceManagementPage.h
+    src/ui/DeviceManagementPage.cpp
 )
 
 # 创建主应用程序

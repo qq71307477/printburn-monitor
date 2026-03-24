@@ -2,6 +2,9 @@
 #include "UserManagementPage.h"
 #include "RoleManagementPage.h"
 #include "DepartmentManagementPage.h"
+#include "DeviceManagementPage.h"
+#include "LoginLogPage.h"
+#include "OperationLogPage.h"
 #include "SecurityPolicyConfigPage.h"
 #include <QHeaderView>
 #include <QGroupBox>
@@ -15,10 +18,16 @@ SystemManagementPage::SystemManagementPage(QWidget* parent)
     , m_userManagementItem(nullptr)
     , m_roleManagementItem(nullptr)
     , m_departmentManagementItem(nullptr)
+    , m_deviceManagementItem(nullptr)
+    , m_loginLogItem(nullptr)
+    , m_operationLogItem(nullptr)
     , m_securityPolicyItem(nullptr)
     , m_userManagementPage(nullptr)
     , m_roleManagementPage(nullptr)
     , m_departmentManagementPage(nullptr)
+    , m_deviceManagementPage(nullptr)
+    , m_loginLogPage(nullptr)
+    , m_operationLogPage(nullptr)
     , m_securityPolicyPage(nullptr)
 {
     setupUI();
@@ -82,6 +91,15 @@ void SystemManagementPage::setupSubNavigation()
     m_departmentManagementItem = new QListWidgetItem("组织架构", m_subNavList);
     m_departmentManagementItem->setData(Qt::UserRole, "department_management");
 
+    m_deviceManagementItem = new QListWidgetItem("设备管理", m_subNavList);
+    m_deviceManagementItem->setData(Qt::UserRole, "device_management");
+
+    m_loginLogItem = new QListWidgetItem("登录日志", m_subNavList);
+    m_loginLogItem->setData(Qt::UserRole, "login_log");
+
+    m_operationLogItem = new QListWidgetItem("操作日志", m_subNavList);
+    m_operationLogItem->setData(Qt::UserRole, "operation_log");
+
     m_securityPolicyItem = new QListWidgetItem("安全策略", m_subNavList);
     m_securityPolicyItem->setData(Qt::UserRole, "security_policy");
 
@@ -97,22 +115,33 @@ void SystemManagementPage::setupContentPages()
 {
     m_contentStack = new QStackedWidget(this);
 
-    // Create placeholder pages for each sub-module
-    // These will be replaced with actual implementation pages later
+    // Create pages for each sub-module
 
-    // User Management Page (actual implementation)
+    // User Management Page
     m_userManagementPage = new UserManagementPage(this);
     m_contentStack->addWidget(m_userManagementPage);
 
-    // Role Management Page (actual implementation)
+    // Role Management Page
     m_roleManagementPage = new RoleManagementPage(this);
     m_contentStack->addWidget(m_roleManagementPage);
 
-    // Department Management Page (actual implementation)
+    // Department Management Page
     m_departmentManagementPage = new DepartmentManagementPage(this);
     m_contentStack->addWidget(m_departmentManagementPage);
 
-    // Security Policy Page (placeholder)
+    // Device Management Page
+    m_deviceManagementPage = new DeviceManagementPage(this);
+    m_contentStack->addWidget(m_deviceManagementPage);
+
+    // Login Log Page
+    m_loginLogPage = new LoginLogPage(this);
+    m_contentStack->addWidget(m_loginLogPage);
+
+    // Operation Log Page
+    m_operationLogPage = new OperationLogPage(this);
+    m_contentStack->addWidget(m_operationLogPage);
+
+    // Security Policy Page
     m_securityPolicyPage = new SecurityPolicyConfigPage(this);
     m_contentStack->addWidget(m_securityPolicyPage);
 }

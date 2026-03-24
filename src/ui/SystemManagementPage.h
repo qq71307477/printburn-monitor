@@ -34,12 +34,18 @@ private:
     QListWidgetItem* m_userManagementItem;
     QListWidgetItem* m_roleManagementItem;
     QListWidgetItem* m_departmentManagementItem;
+    QListWidgetItem* m_deviceManagementItem;
+    QListWidgetItem* m_loginLogItem;
+    QListWidgetItem* m_operationLogItem;
     QListWidgetItem* m_securityPolicyItem;
 
-    // Content pages (placeholders for now)
+    // Content pages
     QWidget* m_userManagementPage;
     QWidget* m_roleManagementPage;
     QWidget* m_departmentManagementPage;
+    QWidget* m_deviceManagementPage;
+    QWidget* m_loginLogPage;
+    QWidget* m_operationLogPage;
     QWidget* m_securityPolicyPage;
 };
 
