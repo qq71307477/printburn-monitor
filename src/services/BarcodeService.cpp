@@ -5,6 +5,10 @@
 #include <QDate>
 #include <cmath>
 
+// 静态成员定义
+const int BarcodeService::CODE128_START_B;
+const int BarcodeService::CODE128_STOP;
+
 // Code128条码模式定义
 // 每个字符对应一个11模块宽度的条码模式（窄条=1，宽条=3）
 const QString BarcodeService::CODE128_PATTERNS[] = {
