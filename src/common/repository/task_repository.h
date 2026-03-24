@@ -10,24 +10,17 @@
 #include <vector>
 #include <memory>
 
-class TaskRepository; // Forward declaration
+class TaskRepository;
 
-// 用户名缓存，避免重复查询
-// 使用单例模式避免静态成员重定义问题
+// 用户名缓存接口（仅声明，实现在 .cpp 中避免重定义）
 class UserNameCache {
-private:
-    QCache<int, QString> m_cache;
-    static const int MAX_CACHE_SIZE = 500;
-    UserNameCache() {}
 public:
-    static UserNameCache& instance() {
-        static UserNameCache cache;
-        return cache;
-    }
     static QString getUserName(int userId);
     static void cacheUserName(int userId, const QString& username);
-    static void clear() { instance().m_cache.clear(); }
+    static void clear();
     static void preloadUserNames();
+private:
+    UserNameCache() = delete;
 };
 
 class TaskRepository {

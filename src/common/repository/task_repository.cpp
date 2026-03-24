@@ -903,21 +903,43 @@ bool TaskRepository::updateSerialNumber(int taskId, const QString& serialNumber)
 }
 
 // 用户名缓存实现
-QCache<int, QString> UserNameCache::m_cache(MAX_CACHE_SIZE);
+namespace {
+    QCache<int, QString>& getUserCache() {
+        static QCache<int, QString> cache(500);
+        return cache;
+    }
+}
 
 QString UserNameCache::getUserName(int userId) {
-    if (m_cache.contains(userId)) {
-        return *m_cache.object(userId);
+    auto& cache = getUserCache();
+    if (cache.contains(userId)) {
+        return *cache.object(userId);
     }
     return QString();
 }
 
 void UserNameCache::cacheUserName(int userId, const QString& username) {
-    m_cache.insert(userId, new QString(username));
+    auto& cache = getUserCache();
+    cache.insert(userId, new QString(username));
 }
 
 void UserNameCache::clear() {
-    m_cache.clear();
+    getUserCache().clear();
+}
+
+void UserNameCache::preloadUserNames() {
+    // 预加载所有用户名到缓存
+    DatabaseManager* db = DatabaseManager::instance();
+    if (!db) return;
+
+    QSqlQuery query(db->get_connection());
+    if (query.exec("SELECT id, username FROM users WHERE is_active = 1")) {
+        while (query.next()) {
+            int userId = query.value(0).toInt();
+            QString username = query.value(1).toString();
+            cacheUserName(userId, username);
+        }
+    }
 }
 
 // 分页查询方法实现
