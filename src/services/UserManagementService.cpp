@@ -404,51 +404,14 @@ bool UserManagementService::resetUserPassword(int userId, const QString &newPass
     return result;
 }
 
-bool UserManagementService::validateUserPermission(int userId, const QString &permission) const
-{
-    if (permission.isEmpty()) {
-        return false;
-    }
 
-    // 检查用户的角色是否包含指定权限
-    QList<Role> userRoles = getUserRoles(userId);
+#include "AuthService.h"
 
-    if (userRoles.isEmpty()) {
-        return false;
-    }
-
-    for (const Role &role : userRoles) {
-        // 检查角色是否激活
-        if (!role.isActive()) {
-            continue;
-        }
-
-        QString permissionsStr = role.getPermissions();
-        if (permissionsStr.isEmpty()) {
-            continue;
-        }
-
-        // 权限字符串格式为逗号分隔的权限列表，如 "CREATE_USER,UPDATE_USER,DELETE_USER"
-        QStringList permissionList = permissionsStr.split(',', QString::SkipEmptyParts);
-        for (QString &perm : permissionList) {
-            perm = perm.trimmed();
-            if (perm == permission || perm == "*") {
-                return true; // 找到匹配的权限或通配符权限
-            }
-        }
-    }
-
-    return false; // 未找到匹配的权限
-}
+// ... a few lines later ...
 
 bool UserManagementService::checkOperatorPermission(int operatorId, const QString &operation) const
 {
-    // 在实际实现中，这里会检查操作者的权限
-    // 检查该操作者是否有执行指定操作的权限
-    // 简化实现，返回true
-    Q_UNUSED(operatorId)
-    Q_UNUSED(operation)
-    return true;
+    return AuthService::validateUserPermission(operatorId, operation);
 }
 
 bool UserManagementService::logUserOperation(int userId, int operatorId, const QString &operation, const QString &details) const

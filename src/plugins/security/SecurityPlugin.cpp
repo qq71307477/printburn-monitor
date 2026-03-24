@@ -1,4 +1,5 @@
 #include "SecurityPlugin.h"
+#include "SensitiveWordsService.h"
 #include <QDebug>
 #include <QDateTime>
 
@@ -45,7 +46,7 @@ QVariant SecurityPlugin::execute(const QString &function, const QVariantMap &par
     if (function == "checkSensitiveWords") {
         // 检查敏感词
         QString content = params.value("content", "").toString();
-        QStringList sensitiveWords = {"机密", "绝密", "内部资料"};
+        QStringList sensitiveWords = SensitiveWordsService::getInstance().getAllSensitiveWords();
 
         QVariantMap result;
         result["content"] = content;

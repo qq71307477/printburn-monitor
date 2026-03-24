@@ -11,8 +11,10 @@
 class DepartmentRepository {
 private:
     DatabaseManager* db_manager_;
+    static DatabaseManager* default_db_manager_;
 
 public:
+    DepartmentRepository();
     explicit DepartmentRepository(DatabaseManager* db_manager);
 
     bool create_table();

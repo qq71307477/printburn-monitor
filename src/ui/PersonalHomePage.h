@@ -11,6 +11,7 @@
 #include <QPushButton>
 #include <QGroupBox>
 #include <QProgressBar>
+#include <QString>
 
 class PersonalHomePage : public QWidget
 {
@@ -19,12 +20,23 @@ class PersonalHomePage : public QWidget
 public:
     explicit PersonalHomePage(QWidget *parent = nullptr);
 
+    // 设置当前用户，加载用户相关数据
+    void setCurrentUser(const QString &userId);
+
+signals:
+    void navigateToPage(const QString &pageName);
+
 private:
     void setupUI();
     void setupUserInfoSection();
     void setupQuickAccessSection();
     void setupRecentActivitiesSection();
     void setupStatisticsSection();
+
+    // 数据加载方法
+    void loadUserInfo();
+    void loadStatistics();
+    void loadRecentActivities();
 
     // UI Components
     QVBoxLayout *m_layout;
@@ -53,6 +65,10 @@ private:
     QLabel *m_burnCountLabel;
     QLabel *m_approvalCountLabel;
     QLabel *m_pendingApprovalLabel;
+
+    // Current user data
+    QString m_currentUserId;
+    int m_currentUserIdInt;
 };
 
 #endif // PERSONALHOMEPAGE_H

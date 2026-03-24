@@ -40,8 +40,6 @@ public:
     // 重置密码
     bool resetUserPassword(int userId, const QString &newPassword, int operatorId);
 
-    // 验证用户权限
-    bool validateUserPermission(int userId, const QString &permission) const;
 
 private:
     UserManagementService();  // 私有构造函数，确保单例

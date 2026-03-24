@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS roles (
     description TEXT,
     permissions TEXT,  -- JSON string containing permissions
     is_active BOOLEAN DEFAULT 1,
+    is_system BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS devices (
     status TEXT DEFAULT 'available', -- available, in_use, maintenance, offline
     specifications TEXT,             -- Technical specs
     is_monitored BOOLEAN DEFAULT 1,  -- Whether the device is under security monitoring
+    assignment_date DATETIME,        -- Date when device was assigned to user
     last_seen DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -78,9 +80,22 @@ CREATE TABLE IF NOT EXISTS tasks (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     completed_at DATETIME,
+    user_id INTEGER,
+    type TEXT,
+    file_path TEXT,
+    copies INTEGER DEFAULT 0,
+    approver_id INTEGER,
+    approval_status TEXT,
+    media_type TEXT,
+    session_mode TEXT,
+    approval_time DATETIME,
+    approval_reason TEXT,
+    serial_number TEXT,
     FOREIGN KEY (assigned_user_id) REFERENCES users(id),
     FOREIGN KEY (created_by_user_id) REFERENCES users(id),
-    FOREIGN KEY (device_id) REFERENCES devices(id)
+    FOREIGN KEY (device_id) REFERENCES devices(id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (approver_id) REFERENCES users(id)
 );
 
 -- Indexes for better performance
@@ -97,6 +112,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_device_id ON tasks(device_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
 CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
+CREATE INDEX IF NOT EXISTS idx_tasks_serial_number ON tasks(serial_number);
 
 -- Insert default roles
 INSERT OR IGNORE INTO roles (name, description, permissions) VALUES

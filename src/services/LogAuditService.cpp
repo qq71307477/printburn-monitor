@@ -7,15 +7,17 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <mutex>
 
 // 静态实例
+static std::once_flag onceFlag;
 static LogAuditService* instance = nullptr;
 
 LogAuditService& LogAuditService::getInstance()
 {
-    if (!instance) {
+    std::call_once(onceFlag, []() {
         instance = new LogAuditService();
-    }
+    });
     return *instance;
 }
 

@@ -10,6 +10,7 @@
 class DatabaseManager {
 private:
     QSqlDatabase db_;
+    bool populate_default_data();
 
 public:
     explicit DatabaseManager(const QString& db_path);

@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 查找Qt库
-find_package(Qt5 REQUIRED COMPONENTS Core Widgets Sql Network Test)
+find_package(Qt5 REQUIRED COMPONENTS Core Widgets Sql Network Test PrintSupport)
 
 # 设置Qt相关编译选项
 set(CMAKE_AUTOMOC ON)
@@ -61,13 +61,33 @@ list(APPEND SOURCES ${SERVICE_SOURCES})
 list(APPEND SOURCES
     src/plugins/security/SecurityPlugin.h
     src/plugins/security/SecurityPlugin.cpp
+    src/ui/SecurityLevelConfigPage.h
+    src/ui/SecurityLevelConfigPage.cpp
+    src/ui/ApproverConfigPage.h
+    src/ui/ApproverConfigPage.cpp
+    src/ui/SerialNumberConfigPage.h
+    src/ui/SerialNumberConfigPage.cpp
+    src/ui/BarcodeConfigPage.h
+    src/ui/BarcodeConfigPage.cpp
+    src/ui/SystemManagementPage.h
+    src/ui/SystemManagementPage.cpp
+    src/ui/UserManagementPage.h
+    src/ui/UserManagementPage.cpp
+    src/ui/RoleManagementPage.h
+    src/ui/RoleManagementPage.cpp
+    src/ui/DepartmentManagementPage.h
+    src/ui/DepartmentManagementPage.cpp
+    src/ui/SecurityPolicyConfigPage.h
+    src/ui/SecurityPolicyConfigPage.cpp
+    src/ui/ProxyApproverConfigPage.h
+    src/ui/ProxyApproverConfigPage.cpp
 )
 
 # 创建主应用程序
 add_executable(${PROJECT_NAME} ${SOURCES})
 
 # 链接Qt库
-target_link_libraries(${PROJECT_NAME} Qt5::Core Qt5::Widgets Qt5::Sql Qt5::Network Qt5::Test)
+target_link_libraries(${PROJECT_NAME} Qt5::Core Qt5::Widgets Qt5::Sql Qt5::Network Qt5::Test Qt5::PrintSupport)
 
 # 添加插件子目录
 add_subdirectory(src/plugins)

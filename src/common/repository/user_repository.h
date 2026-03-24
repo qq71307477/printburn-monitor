@@ -31,7 +31,7 @@ public:
     bool update(const User& user);
     QList<User> search(const QString& keyword);
     QList<User> findByDepartmentId(int department_id);
-    QList<User> findByRoleId(int roleId);
+    QList<User> findByRoleId(int roleId); // New signature
 
     // User-Role relationship management
     bool addUserRole(int userId, int roleId);
@@ -45,7 +45,7 @@ public:
     std::unique_ptr<User> find_by_email(const std::string& email);
     bool remove(int id);
     std::vector<std::unique_ptr<User>> find_by_department(int department_id);
-    std::vector<std::unique_ptr<User>> find_by_role(int role_id);
+    // Removed: std::vector<std::unique_ptr<User>> find_by_role(int role_id);
 };
 
 #endif // USER_REPOSITORY_H

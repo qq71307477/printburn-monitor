@@ -33,7 +33,11 @@ public:
     // Qt-style methods
     Task findById(int id);
     QList<Task> findByUserId(int userId, const QString& taskType = QString(), const QString& status = QString(), int limit = 0, int offset = 0);
+    QList<Task> findByType(const QString& taskType, const QString& status = QString(), int limit = 0, int offset = 0);
     QList<Task> findPendingApprovalTasks(const QString& approverRole);
+
+    // Serial number support
+    bool updateSerialNumber(int taskId, const QString& serialNumber);
 };
 
 #endif // TASK_REPOSITORY_H

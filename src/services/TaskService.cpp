@@ -4,15 +4,17 @@
 #include "src/plugins/security/SecurityPlugin.h"
 #include <QDateTime>
 #include <QUuid>
+#include <mutex>
 
 // 静态实例
+static std::once_flag onceFlag;
 static TaskService* instance = nullptr;
 
 TaskService& TaskService::getInstance()
 {
-    if (!instance) {
+    std::call_once(onceFlag, []() {
         instance = new TaskService();
-    }
+    });
     return *instance;
 }
 
@@ -99,6 +101,13 @@ QList<Task> TaskService::getUserTasks(const QString &username, const QString &ta
     return taskRepo.findByUserId(user.getId(), taskType, status, limit, offset);
 }
 
+QList<Task> TaskService::getTasksByType(const QString &taskType, const QString &status,
+                                         int limit, int offset)
+{
+    TaskRepository taskRepo;
+    return taskRepo.findByType(taskType, status, limit, offset);
+}
+
 QList<Task> TaskService::getPendingApprovalTasks(const QString &approverRole)
 {
     TaskRepository taskRepo;
@@ -131,7 +140,11 @@ bool TaskService::submitApproval(int taskId, const QString &approver, bool appro
     bool result = taskRepo.update(task);
 
     // 记录审批日志
-    // TODO: 调用安全插件记录审计日志
+    QVariantMap logParams;
+    logParams["userId"] = task.getUserId();
+    logParams["action"] = approved ? "APPROVE_TASK" : "REJECT_TASK";
+    logParams["resource"] = QString("Task #%1").arg(taskId);
+    PluginManager::getInstance().executePlugin("SecurityPlugin", "generateAuditLog", logParams);
 
     return result;
 }
@@ -151,7 +164,11 @@ bool TaskService::updateTaskStatus(int taskId, const QString &newStatus)
     bool result = taskRepo.update(task);
 
     // 记录状态变更日志
-    // TODO: 调用安全插件记录审计日志
+    QVariantMap logParams;
+    logParams["userId"] = task.getUserId();
+    logParams["action"] = "UPDATE_TASK_STATUS";
+    logParams["resource"] = QString("Task #%1 to %2").arg(taskId).arg(newStatus);
+    PluginManager::getInstance().executePlugin("SecurityPlugin", "generateAuditLog", logParams);
 
     return result;
 }
@@ -164,17 +181,16 @@ Task TaskService::getTaskById(int taskId) const
 
 bool TaskService::checkSensitiveWords(const QString &content) const
 {
-    // 创建安全插件实例来执行敏感词检查
-    SecurityPlugin securityPlugin;
-    if (!securityPlugin.initialize()) {
-        // 如果安全插件无法初始化，则保守处理，认为有敏感词
-        return true;
-    }
+#include "common/PluginManager.h"
 
+// ... a few lines later ...
+
+bool TaskService::checkSensitiveWords(const QString &content) const
+{
     QVariantMap params;
     params["content"] = content;
 
-    QVariant result = securityPlugin.execute("checkSensitiveWords", params);
+    QVariant result = PluginManager::getInstance().executePlugin("SecurityPlugin", "checkSensitiveWords", params);
 
     if (result.type() == QVariant::Map) {
         QVariantMap resultMap = result.toMap();
@@ -187,17 +203,9 @@ bool TaskService::checkSensitiveWords(const QString &content) const
 
 QVariantMap TaskService::executeSensitiveCheck(const QString &content) const
 {
-    SecurityPlugin securityPlugin;
-    if (!securityPlugin.initialize()) {
-        QVariantMap errorResult;
-        errorResult["success"] = false;
-        errorResult["error"] = "Failed to initialize security plugin";
-        return errorResult;
-    }
-
     QVariantMap params;
     params["content"] = content;
 
-    QVariant result = securityPlugin.execute("checkSensitiveWords", params);
+    QVariant result = PluginManager::getInstance().executePlugin("SecurityPlugin", "checkSensitiveWords", params);
     return result.toMap();
 }

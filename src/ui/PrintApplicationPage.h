@@ -33,6 +33,10 @@ private:
     void setupApplicationForm();
     void setupDocumentPreview();
     void setupApplicationHistory();
+    void updatePreview(const QString& filePath);
+    void loadDevices();
+    void loadSecurityLevels();
+    void loadApprovers();
 
     // UI Components
     QVBoxLayout *m_layout;
@@ -42,6 +46,9 @@ private:
     QFormLayout *m_formLayout;
     QLineEdit *m_documentTitleEdit;
     QTextEdit *m_purposeEdit;
+    QComboBox *m_deviceCombo;
+    QComboBox *m_securityLevelCombo;
+    QComboBox *m_approverCombo;
     QComboBox *m_priorityCombo;
     QSpinBox *m_copiesSpin;
     QDateEdit *m_deadlineEdit;

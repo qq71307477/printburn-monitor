@@ -1,4 +1,7 @@
 #include "TaskApprovalPage.h"
+#include "../services/TaskService.h"
+#include "../models/task_model.h"
+#include "../common/repository/user_repository.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -17,16 +20,19 @@
 #include <QProgressBar>
 #include <QDateTime>
 #include <QTableWidgetItem>
-#include <QAction>
 #include <QRadioButton>
 #include <QButtonGroup>
+#include <QtAlgorithms>
+#include <QInputDialog>
 
 TaskApprovalPage::TaskApprovalPage(QWidget *parent)
     : QWidget(parent)
+    , m_currentPage(1)
+    , m_pageSize(10)
+    , m_totalCount(0)
+    , m_sortColumn(-1)
+    , m_sortOrder(Qt::AscendingOrder)
 {
-    mCurrentPage = 1;
-    mPageSize = 10;
-    mTotalCount = 0;
     setupUI();
 }
 
@@ -179,7 +185,7 @@ void TaskApprovalPage::setupPagination()
     m_nextPageButton = new QPushButton("下一页", this);
     m_pageSpinBox = new QSpinBox(this);
     m_pageSpinBox->setRange(1, 9999);
-    m_pageSpinBox->setValue(mCurrentPage);
+    m_pageSpinBox->setValue(m_currentPage);
 
     m_pageSizeCombo = new QComboBox(this);
     m_pageSizeCombo->addItem("10 条/页", 10);
@@ -189,32 +195,32 @@ void TaskApprovalPage::setupPagination()
     m_pageSizeCombo->setCurrentIndex(0);
 
     connect(m_prevPageButton, &QPushButton::clicked, [this]() {
-        if (mCurrentPage > 1) {
-            mCurrentPage--;
-            m_pageSpinBox->setValue(mCurrentPage);
+        if (m_currentPage > 1) {
+            m_currentPage--;
+            m_pageSpinBox->setValue(m_currentPage);
             refreshTasks();
         }
     });
 
     connect(m_nextPageButton, &QPushButton::clicked, [this]() {
-        if (mCurrentPage < (mTotalCount + mPageSize - 1) / mPageSize) {
-            mCurrentPage++;
-            m_pageSpinBox->setValue(mCurrentPage);
+        if (m_currentPage < (m_totalCount + m_pageSize - 1) / m_pageSize) {
+            m_currentPage++;
+            m_pageSpinBox->setValue(m_currentPage);
             refreshTasks();
         }
     });
 
     connect(m_pageSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), [this](int value) {
-        if (value >= 1 && value <= (mTotalCount + mPageSize - 1) / mPageSize) {
-            mCurrentPage = value;
+        if (value >= 1 && value <= (m_totalCount + m_pageSize - 1) / m_pageSize) {
+            m_currentPage = value;
             refreshTasks();
         }
     });
 
     connect(m_pageSizeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](int index) {
-        mPageSize = m_pageSizeCombo->currentData().toInt();
-        mCurrentPage = 1;
-        m_pageSpinBox->setValue(mCurrentPage);
+        m_pageSize = m_pageSizeCombo->currentData().toInt();
+        m_currentPage = 1;
+        m_pageSpinBox->setValue(m_currentPage);
         refreshTasks();
     });
 
@@ -223,7 +229,7 @@ void TaskApprovalPage::setupPagination()
     m_paginationLayout->addWidget(m_prevPageButton);
     m_paginationLayout->addWidget(m_pageSpinBox);
     m_paginationLayout->addWidget(new QLabel("/", this));
-    m_totalPagesLabel = new QLabel(QString::number((mTotalCount + mPageSize - 1) / mPageSize), this);
+    m_totalPagesLabel = new QLabel(QString::number((m_totalCount + m_pageSize - 1) / m_pageSize), this);
     m_paginationLayout->addWidget(m_totalPagesLabel);
     m_paginationLayout->addWidget(m_nextPageButton);
     m_paginationLayout->addWidget(m_pageSizeCombo);
@@ -236,41 +242,60 @@ void TaskApprovalPage::refreshTasks()
     // Clear existing items
     m_taskTable->setRowCount(0);
 
-    // Simulate loading data - in real implementation this would fetch from database
-    // For demo purposes, we'll create sample data
-    for (int i = 0; i < 18; ++i) {
+    // Get tasks from TaskService
+    TaskService &taskService = TaskService::getInstance();
+    m_allTasks = taskService.getPendingApprovalTasks();
+
+    // Store original tasks for filtering
+    m_filteredTasks = m_allTasks;
+    m_totalCount = m_filteredTasks.size();
+
+    // Apply current sort if any
+    if (m_sortColumn >= 0) {
+        sortTasks(m_sortColumn);
+    } else {
+        populateTable(m_filteredTasks);
+    }
+}
+
+void TaskApprovalPage::populateTable(const QList<Task> &tasks)
+{
+    m_taskTable->setRowCount(0);
+
+    // Calculate pagination
+    int startIndex = (m_currentPage - 1) * m_pageSize;
+    int endIndex = qMin(startIndex + m_pageSize, tasks.size());
+
+    for (int i = startIndex; i < endIndex; ++i) {
+        const Task &task = tasks[i];
         int row = m_taskTable->rowCount();
         m_taskTable->insertRow(row);
 
         // Checkbox column
         QCheckBox *checkBox = new QCheckBox();
+        checkBox->setProperty("taskId", task.getId());
         m_taskTable->setCellWidget(row, 0, checkBox);
 
         // Task ID
-        m_taskTable->setItem(row, 1, new QTableWidgetItem(QString("AT%1").arg(i+3001)));
+        m_taskTable->setItem(row, 1, new QTableWidgetItem(QString::number(task.getId())));
 
         // Task type
-        QString taskType = (i % 2 == 0) ? "打印任务" : "刻录任务";
-        m_taskTable->setItem(row, 2, new QTableWidgetItem(taskType));
+        m_taskTable->setItem(row, 2, new QTableWidgetItem(getTaskTypeName(task.getType())));
 
         // Document title
-        m_taskTable->setItem(row, 3, new QTableWidgetItem(QString("文档标题 %1").arg(i+1)));
+        m_taskTable->setItem(row, 3, new QTableWidgetItem(task.getTitle()));
 
         // Applicant
-        m_taskTable->setItem(row, 4, new QTableWidgetItem(QString("申请人 %1").arg(i%5 + 1)));
+        m_taskTable->setItem(row, 4, new QTableWidgetItem(getUserName(task.getUserId())));
 
         // Priority
-        QString priority = (i % 3 == 0) ? "普通" : (i % 3 == 1 ? "紧急" : "加急");
-        m_taskTable->setItem(row, 5, new QTableWidgetItem(priority));
+        m_taskTable->setItem(row, 5, new QTableWidgetItem(getPriorityName(task.getPriority())));
 
         // Status
-        QStringList statuses = {"待审批", "已批准", "已拒绝", "已取消"};
-        QString status = statuses[i % statuses.length()];
-        m_taskTable->setItem(row, 6, new QTableWidgetItem(status));
+        m_taskTable->setItem(row, 6, new QTableWidgetItem(getStatusDisplayName(task.getApprovalStatus())));
 
         // Apply time
-        QDateTime time = QDateTime::currentDateTime().addDays(-i);
-        m_taskTable->setItem(row, 7, new QTableWidgetItem(time.toString("yyyy-MM-dd hh:mm:ss")));
+        m_taskTable->setItem(row, 7, new QTableWidgetItem(task.getCreateTime().toString("yyyy-MM-dd hh:mm:ss")));
 
         // Action column
         QWidget *actionWidget = new QWidget();
@@ -286,11 +311,11 @@ void TaskApprovalPage::refreshTasks()
     }
 
     // Update pagination info
-    mTotalCount = 18; // In real implementation, this would come from data source
-    int totalPages = (mTotalCount + mPageSize - 1) / mPageSize;
+    int totalPages = (m_totalCount + m_pageSize - 1) / m_pageSize;
+    if (totalPages < 1) totalPages = 1;
     m_pageInfoLabel->setText(QString("共 %1 条记录，第 %2/%3 页")
-                                .arg(mTotalCount)
-                                .arg(mCurrentPage)
+                                .arg(m_totalCount)
+                                .arg(m_currentPage)
                                 .arg(totalPages));
     m_totalPagesLabel->setText(QString::number(totalPages));
     m_pageSpinBox->setMaximum(totalPages);
@@ -298,69 +323,382 @@ void TaskApprovalPage::refreshTasks()
 
 void TaskApprovalPage::filterTasks()
 {
-    // Implementation would filter the tasks based on selected criteria
-    refreshTasks(); // For now, just refresh
-    QMessageBox::information(this, "提示", "已应用筛选条件");
+    // Get filter criteria
+    QString searchText = m_searchEdit->text().trimmed().toLower();
+    QString taskType = m_taskTypeCombo->currentData().toString().toUpper();
+    QString status = m_statusCombo->currentData().toString().toUpper();
+    QString priority = m_priorityCombo->currentData().toString().toUpper();
+    QDate startDate = m_startDateEdit->date();
+    QDate endDate = m_endDateEdit->date();
+
+    // Filter tasks
+    m_filteredTasks.clear();
+
+    for (const Task &task : m_allTasks) {
+        bool match = true;
+
+        // Search filter
+        if (!searchText.isEmpty()) {
+            if (!task.getTitle().toLower().contains(searchText) &&
+                !task.getDescription().toLower().contains(searchText)) {
+                match = false;
+            }
+        }
+
+        // Task type filter
+        if (match && !taskType.isEmpty()) {
+            if (task.getType().toUpper() != taskType) {
+                match = false;
+            }
+        }
+
+        // Status filter (approval status)
+        if (match && !status.isEmpty()) {
+            QString approvalStatus = task.getApprovalStatus().toUpper();
+            if (status == "PENDING" && approvalStatus != "PENDING") {
+                match = false;
+            } else if (status == "APPROVED" && approvalStatus != "APPROVED") {
+                match = false;
+            } else if (status == "REJECTED" && approvalStatus != "REJECTED") {
+                match = false;
+            }
+        }
+
+        // Priority filter
+        if (match && !priority.isEmpty()) {
+            if (task.getPriority().toUpper() != priority) {
+                match = false;
+            }
+        }
+
+        // Date range filter
+        if (match) {
+            QDate taskDate = task.getCreateTime().date();
+            if (taskDate < startDate || taskDate > endDate) {
+                match = false;
+            }
+        }
+
+        if (match) {
+            m_filteredTasks.append(task);
+        }
+    }
+
+    m_totalCount = m_filteredTasks.size();
+    m_currentPage = 1;
+    m_pageSpinBox->setValue(1);
+
+    // Apply current sort if any
+    if (m_sortColumn >= 0) {
+        sortTasks(m_sortColumn);
+    } else {
+        populateTable(m_filteredTasks);
+    }
+
+    QMessageBox::information(this, "提示", QString("已应用筛选条件，共找到 %1 条记录").arg(m_totalCount));
 }
 
 void TaskApprovalPage::sortTasks(int column)
 {
-    // Implementation would sort the tasks based on selected column
-    QMessageBox::information(this, "提示", QString("按第 %1 列排序").arg(column));
+    // Toggle sort order if clicking the same column
+    if (m_sortColumn == column) {
+        m_sortOrder = (m_sortOrder == Qt::AscendingOrder) ? Qt::DescendingOrder : Qt::AscendingOrder;
+    } else {
+        m_sortColumn = column;
+        m_sortOrder = Qt::AscendingOrder;
+    }
+
+    // Sort the filtered tasks
+    std::sort(m_filteredTasks.begin(), m_filteredTasks.end(), [this, column](const Task &a, const Task &b) {
+        bool lessThan = false;
+
+        switch (column) {
+        case 1: // Task ID
+            lessThan = a.getId() < b.getId();
+            break;
+        case 2: // Task type
+            lessThan = a.getType().toLower() < b.getType().toLower();
+            break;
+        case 3: // Document title
+            lessThan = a.getTitle().toLower() < b.getTitle().toLower();
+            break;
+        case 4: // Applicant
+            lessThan = getUserName(a.getUserId()).toLower() < getUserName(b.getUserId()).toLower();
+            break;
+        case 5: // Priority
+            lessThan = a.getPriority().toLower() < b.getPriority().toLower();
+            break;
+        case 6: // Status
+            lessThan = a.getApprovalStatus().toLower() < b.getApprovalStatus().toLower();
+            break;
+        case 7: // Apply time
+            lessThan = a.getCreateTime() < b.getCreateTime();
+            break;
+        default:
+            lessThan = a.getId() < b.getId();
+            break;
+        }
+
+        return (m_sortOrder == Qt::AscendingOrder) ? lessThan : !lessThan;
+    });
+
+    populateTable(m_filteredTasks);
 }
 
 void TaskApprovalPage::approveSelected()
 {
-    int selectedCount = 0;
+    QList<int> selectedTaskIds;
     for (int i = 0; i < m_taskTable->rowCount(); ++i) {
         QCheckBox *checkBox = qobject_cast<QCheckBox*>(m_taskTable->cellWidget(i, 0));
         if (checkBox && checkBox->isChecked()) {
-            selectedCount++;
+            int taskId = checkBox->property("taskId").toInt();
+            selectedTaskIds.append(taskId);
         }
     }
 
-    if (selectedCount == 0) {
+    if (selectedTaskIds.isEmpty()) {
         QMessageBox::information(this, "提示", "请先选择要批准的任务");
         return;
     }
 
-    QMessageBox::information(this, "提示", QString("已批准 %1 个任务").arg(selectedCount));
+    QMessageBox::StandardButton reply = QMessageBox::question(this, "确认",
+        QString("确定要批准选中的 %1 个任务吗？").arg(selectedTaskIds.size()),
+        QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+
+    TaskService &taskService = TaskService::getInstance();
+    int successCount = 0;
+    int failCount = 0;
+
+    for (int taskId : selectedTaskIds) {
+        if (taskService.submitApproval(taskId, "approver", true, "")) {
+            successCount++;
+        } else {
+            failCount++;
+        }
+    }
+
+    QString message;
+    if (failCount == 0) {
+        message = QString("已成功批准 %1 个任务").arg(successCount);
+    } else {
+        message = QString("批准完成：成功 %1 个，失败 %2 个").arg(successCount).arg(failCount);
+    }
+
+    QMessageBox::information(this, "提示", message);
+
+    // Refresh the task list
+    refreshTasks();
 }
 
 void TaskApprovalPage::rejectSelected()
 {
-    int selectedCount = 0;
+    QList<int> selectedTaskIds;
     for (int i = 0; i < m_taskTable->rowCount(); ++i) {
         QCheckBox *checkBox = qobject_cast<QCheckBox*>(m_taskTable->cellWidget(i, 0));
         if (checkBox && checkBox->isChecked()) {
-            selectedCount++;
+            int taskId = checkBox->property("taskId").toInt();
+            selectedTaskIds.append(taskId);
         }
     }
 
-    if (selectedCount == 0) {
+    if (selectedTaskIds.isEmpty()) {
         QMessageBox::information(this, "提示", "请先选择要拒绝的任务");
         return;
     }
 
-    QMessageBox::information(this, "提示", QString("已拒绝 %1 个任务").arg(selectedCount));
+    // Get rejection reason
+    bool ok;
+    QString reason = QInputDialog::getText(this, "拒绝原因",
+        "请输入拒绝原因：", QLineEdit::Normal, "", &ok);
+
+    if (!ok) {
+        return;  // User cancelled
+    }
+
+    QMessageBox::StandardButton reply = QMessageBox::question(this, "确认",
+        QString("确定要拒绝选中的 %1 个任务吗？").arg(selectedTaskIds.size()),
+        QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+
+    TaskService &taskService = TaskService::getInstance();
+    int successCount = 0;
+    int failCount = 0;
+
+    for (int taskId : selectedTaskIds) {
+        if (taskService.submitApproval(taskId, "approver", false, reason)) {
+            successCount++;
+        } else {
+            failCount++;
+        }
+    }
+
+    QString message;
+    if (failCount == 0) {
+        message = QString("已成功拒绝 %1 个任务").arg(successCount);
+    } else {
+        message = QString("拒绝完成：成功 %1 个，失败 %2 个").arg(successCount).arg(failCount);
+    }
+
+    QMessageBox::information(this, "提示", message);
+
+    // Refresh the task list
+    refreshTasks();
 }
 
 void TaskApprovalPage::batchApprove()
 {
-    QMessageBox::StandardButton reply = QMessageBox::question(this, "确认", "确定要批量批准当前页面的所有任务吗？",
-                                                             QMessageBox::Yes | QMessageBox::No);
-
-    if (reply == QMessageBox::Yes) {
-        QMessageBox::information(this, "提示", "已批量批准当前页面的所有任务");
+    if (m_filteredTasks.isEmpty()) {
+        QMessageBox::information(this, "提示", "当前没有可批准的任务");
+        return;
     }
+
+    QMessageBox::StandardButton reply = QMessageBox::question(this, "确认",
+        QString("确定要批量批准当前筛选结果中的所有 %1 个任务吗？").arg(m_filteredTasks.size()),
+        QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+
+    TaskService &taskService = TaskService::getInstance();
+    int successCount = 0;
+    int failCount = 0;
+
+    for (const Task &task : m_filteredTasks) {
+        // Only approve pending tasks
+        if (task.getApprovalStatus().toUpper() == "PENDING") {
+            if (taskService.submitApproval(task.getId(), "approver", true, "")) {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        }
+    }
+
+    QString message;
+    if (failCount == 0) {
+        message = QString("已成功批量批准 %1 个任务").arg(successCount);
+    } else {
+        message = QString("批量批准完成：成功 %1 个，失败 %2 个").arg(successCount).arg(failCount);
+    }
+
+    QMessageBox::information(this, "提示", message);
+
+    // Refresh the task list
+    refreshTasks();
 }
 
 void TaskApprovalPage::batchReject()
 {
-    QMessageBox::StandardButton reply = QMessageBox::question(this, "确认", "确定要批量拒绝当前页面的所有任务吗？",
-                                                             QMessageBox::Yes | QMessageBox::No);
-
-    if (reply == QMessageBox::Yes) {
-        QMessageBox::information(this, "提示", "已批量拒绝当前页面的所有任务");
+    if (m_filteredTasks.isEmpty()) {
+        QMessageBox::information(this, "提示", "当前没有可拒绝的任务");
+        return;
     }
+
+    // Get rejection reason
+    bool ok;
+    QString reason = QInputDialog::getText(this, "拒绝原因",
+        "请输入批量拒绝原因：", QLineEdit::Normal, "", &ok);
+
+    if (!ok) {
+        return;  // User cancelled
+    }
+
+    QMessageBox::StandardButton reply = QMessageBox::question(this, "确认",
+        QString("确定要批量拒绝当前筛选结果中的所有 %1 个任务吗？").arg(m_filteredTasks.size()),
+        QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+
+    TaskService &taskService = TaskService::getInstance();
+    int successCount = 0;
+    int failCount = 0;
+
+    for (const Task &task : m_filteredTasks) {
+        // Only reject pending tasks
+        if (task.getApprovalStatus().toUpper() == "PENDING") {
+            if (taskService.submitApproval(task.getId(), "approver", false, reason)) {
+                successCount++;
+            } else {
+                failCount++;
+            }
+        }
+    }
+
+    QString message;
+    if (failCount == 0) {
+        message = QString("已成功批量拒绝 %1 个任务").arg(successCount);
+    } else {
+        message = QString("批量拒绝完成：成功 %1 个，失败 %2 个").arg(successCount).arg(failCount);
+    }
+
+    QMessageBox::information(this, "提示", message);
+
+    // Refresh the task list
+    refreshTasks();
+}
+
+QString TaskApprovalPage::getTaskTypeName(const QString &type) const
+{
+    QString upperType = type.toUpper();
+    if (upperType == "PRINT") {
+        return "打印任务";
+    } else if (upperType == "BURN") {
+        return "刻录任务";
+    } else {
+        return type;
+    }
+}
+
+QString TaskApprovalPage::getPriorityName(const QString &priority) const
+{
+    QString upperPriority = priority.toUpper();
+    if (upperPriority == "NORMAL") {
+        return "普通";
+    } else if (upperPriority == "URGENT") {
+        return "紧急";
+    } else if (upperPriority == "EXPEDITED") {
+        return "加急";
+    } else if (upperPriority == "HIGH") {
+        return "高";
+    } else if (upperPriority == "LOW") {
+        return "低";
+    } else {
+        return priority;
+    }
+}
+
+QString TaskApprovalPage::getStatusDisplayName(const QString &status) const
+{
+    QString upperStatus = status.toUpper();
+    if (upperStatus == "PENDING") {
+        return "待审批";
+    } else if (upperStatus == "APPROVED") {
+        return "已批准";
+    } else if (upperStatus == "REJECTED") {
+        return "已拒绝";
+    } else if (upperStatus == "CANCELLED") {
+        return "已取消";
+    } else {
+        return status;
+    }
+}
+
+QString TaskApprovalPage::getUserName(int userId) const
+{
+    UserRepository userRepo;
+    User user = userRepo.findById(userId);
+    if (user.getId() > 0) {
+        return user.getUsername();
+    }
+    return QString("用户%1").arg(userId);
 }

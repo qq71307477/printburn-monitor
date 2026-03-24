@@ -27,6 +27,10 @@ public:
     QList<Task> getUserTasks(const QString &username, const QString &taskType = "",
                             const QString &status = "", int limit = -1, int offset = 0);
 
+    // 获取指定类型的所有任务
+    QList<Task> getTasksByType(const QString &taskType, const QString &status = "",
+                               int limit = -1, int offset = 0);
+
     // 获取待审批任务
     QList<Task> getPendingApprovalTasks(const QString &approverRole = "");
 

@@ -1,4 +1,9 @@
 #include "PrintApplicationPage.h"
+#include "src/services/DeviceManagementService.h"
+#include "src/services/SecurityLevelService.h"
+#include "src/services/ApproverConfigService.h"
+#include "src/services/TaskService.h"
+#include "src/services/AuthService.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -15,6 +20,10 @@
 #include <QGroupBox>
 #include <QMessageBox>
 #include <QDateTime>
+#include <QFileInfo>
+#include <QPixmap>
+#include <QMimeDatabase>
+#include <QMimeType>
 
 PrintApplicationPage::PrintApplicationPage(QWidget *parent)
     : QWidget(parent)
@@ -58,6 +67,24 @@ void PrintApplicationPage::setupApplicationForm()
     m_purposeEdit->setPlaceholderText("请简要说明打印目的");
     m_formLayout->addRow("打印目的:", m_purposeEdit);
 
+    // 设备选择（打印机）
+    m_deviceCombo = new QComboBox(this);
+    m_deviceCombo->setPlaceholderText("请选择打印机");
+    loadDevices();
+    m_formLayout->addRow("打印机:", m_deviceCombo);
+
+    // 密级选择
+    m_securityLevelCombo = new QComboBox(this);
+    m_securityLevelCombo->setPlaceholderText("请选择密级");
+    loadSecurityLevels();
+    m_formLayout->addRow("密级:", m_securityLevelCombo);
+
+    // 审批员选择
+    m_approverCombo = new QComboBox(this);
+    m_approverCombo->setPlaceholderText("请选择审批员");
+    loadApprovers();
+    m_formLayout->addRow("审批员:", m_approverCombo);
+
     // 优先级
     m_priorityCombo = new QComboBox(this);
     m_priorityCombo->addItem("普通", 0);
@@ -100,6 +127,9 @@ void PrintApplicationPage::setupApplicationForm()
     connect(m_clearButton, &QPushButton::clicked, [this]() {
         m_documentTitleEdit->clear();
         m_purposeEdit->clear();
+        m_deviceCombo->setCurrentIndex(-1);
+        m_securityLevelCombo->setCurrentIndex(-1);
+        m_approverCombo->setCurrentIndex(-1);
         m_priorityCombo->setCurrentIndex(0);
         m_copiesSpin->setValue(1);
         m_deadlineEdit->setDate(QDate::currentDate().addDays(7));
@@ -163,8 +193,59 @@ void PrintApplicationPage::browseFile()
 
     if (!fileName.isEmpty()) {
         m_filePathEdit->setText(fileName);
-        m_previewLabel->setText("已选择文件: " + QFileInfo(fileName).fileName());
+        updatePreview(fileName);
     }
+}
+
+void PrintApplicationPage::updatePreview(const QString& filePath)
+{
+    QFileInfo fileInfo(filePath);
+
+    if (!fileInfo.exists()) {
+        m_previewLabel->setText("文件不存在");
+        return;
+    }
+
+    QString suffix = fileInfo.suffix().toLower();
+
+    // 图片文件：直接显示缩略图
+    if (suffix == "png" || suffix == "jpg" || suffix == "jpeg" ||
+        suffix == "bmp" || suffix == "gif" || suffix == "tiff") {
+        QPixmap pixmap(filePath);
+        if (!pixmap.isNull()) {
+            QPixmap scaled = pixmap.scaled(200, 200, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            m_previewLabel->setPixmap(scaled);
+            return;
+        }
+        m_previewLabel->setText("无法加载图片");
+        return;
+    }
+
+    // 其他文件类型：显示文件图标和基本信息
+    QMimeDatabase mimeDb;
+    QMimeType mimeType = mimeDb.mimeTypeForFile(filePath);
+
+    QString sizeStr;
+    qint64 size = fileInfo.size();
+    if (size < 1024) {
+        sizeStr = QString("%1 B").arg(size);
+    } else if (size < 1024 * 1024) {
+        sizeStr = QString("%1 KB").arg(size / 1024.0, 0, 'f', 2);
+    } else {
+        sizeStr = QString("%1 MB").arg(size / (1024.0 * 1024.0), 0, 'f', 2);
+    }
+
+    QString previewText = QString(
+        "文件名: %1\n"
+        "类型: %2\n"
+        "大小: %3\n"
+        "修改时间: %4"
+    ).arg(fileInfo.fileName())
+     .arg(mimeType.comment())
+     .arg(sizeStr)
+     .arg(fileInfo.lastModified().toString("yyyy-MM-dd hh:mm:ss"));
+
+    m_previewLabel->setText(previewText);
 }
 
 void PrintApplicationPage::submitApplication()
@@ -179,16 +260,105 @@ void PrintApplicationPage::submitApplication()
         return;
     }
 
-    // 这里应该是实际的提交逻辑
-    // 在真实环境中，应该调用任务插件创建打印任务
-    QMessageBox::information(this, "成功", "打印申请已提交，请等待审批！");
+    if (m_deviceCombo->currentIndex() < 0) {
+        QMessageBox::warning(this, "警告", "请选择打印机！");
+        return;
+    }
 
-    // 清空表单
-    m_documentTitleEdit->clear();
-    m_purposeEdit->clear();
-    m_priorityCombo->setCurrentIndex(0);
-    m_copiesSpin->setValue(1);
-    m_deadlineEdit->setDate(QDate::currentDate().addDays(7));
-    m_filePathEdit->clear();
-    m_previewLabel->setText("文档预览将在选择文件后显示");
+    if (m_securityLevelCombo->currentIndex() < 0) {
+        QMessageBox::warning(this, "警告", "请选择密级！");
+        return;
+    }
+
+    if (m_approverCombo->currentIndex() < 0) {
+        QMessageBox::warning(this, "警告", "请选择审批员！");
+        return;
+    }
+
+    // 获取当前用户
+    User currentUser = AuthService::getInstance().getCurrentUser();
+
+    // 获取优先级文本
+    QString priority = m_priorityCombo->currentText();
+
+    // 创建打印任务
+    bool success = TaskService::getInstance().createPrintTask(
+        currentUser,
+        m_documentTitleEdit->text(),
+        m_purposeEdit->toPlainText(),
+        m_copiesSpin->value(),
+        m_filePathEdit->text(),
+        priority
+    );
+
+    if (success) {
+        QMessageBox::information(this, "成功", "打印申请已提交，请等待审批！");
+
+        // 清空表单
+        m_documentTitleEdit->clear();
+        m_purposeEdit->clear();
+        m_deviceCombo->setCurrentIndex(-1);
+        m_securityLevelCombo->setCurrentIndex(-1);
+        m_approverCombo->setCurrentIndex(-1);
+        m_priorityCombo->setCurrentIndex(0);
+        m_copiesSpin->setValue(1);
+        m_deadlineEdit->setDate(QDate::currentDate().addDays(7));
+        m_filePathEdit->clear();
+        m_previewLabel->clear();
+        m_previewLabel->setText("文档预览将在选择文件后显示");
+    } else {
+        QMessageBox::warning(this, "错误", "打印申请提交失败，请重试！");
+    }
+}
+
+void PrintApplicationPage::loadDevices()
+{
+    m_deviceCombo->clear();
+
+    // 获取打印机列表（设备类型为 "printer"）
+    QList<Device> printers = DeviceManagementService::getInstance().getDevicesByType("printer");
+
+    for (const Device &device : printers) {
+        m_deviceCombo->addItem(device.getName(), device.getId());
+    }
+}
+
+void PrintApplicationPage::loadSecurityLevels()
+{
+    m_securityLevelCombo->clear();
+
+    // 获取激活的密级列表
+    QList<SecurityLevel> levels = SecurityLevelService::getInstance().getActiveLevels();
+
+    for (const SecurityLevel &level : levels) {
+        m_securityLevelCombo->addItem(level.getLevelName(), level.getId());
+    }
+}
+
+void PrintApplicationPage::loadApprovers()
+{
+    m_approverCombo->clear();
+
+    // 获取打印任务类型（task_type = 0）的审批员配置
+    QList<ApproverConfig> configs = ApproverConfigService::getInstance().getConfigsByTaskType(0);
+
+    // 获取审批角色列表用于显示名称
+    QList<QPair<int, QString>> approverRoles = ApproverConfigService::getInstance().getApproverRoles();
+
+    for (const ApproverConfig &config : configs) {
+        if (!config.isActive()) continue;
+
+        // 查找审批角色名称
+        QString roleName;
+        for (const auto &role : approverRoles) {
+            if (role.first == config.getApproverRoleId()) {
+                roleName = role.second;
+                break;
+            }
+        }
+
+        QString displayText = roleName.isEmpty() ?
+            QString("审批角色 #%1").arg(config.getApproverRoleId()) : roleName;
+        m_approverCombo->addItem(displayText, config.getId());
+    }
 }

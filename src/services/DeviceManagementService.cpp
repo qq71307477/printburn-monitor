@@ -2,15 +2,17 @@
 #include "src/common/repository/device_repository.h"
 #include "src/common/repository/user_repository.h"
 #include <QDateTime>
+#include <mutex>
 
 // 静态实例
+static std::once_flag onceFlag;
 static DeviceManagementService* instance = nullptr;
 
 DeviceManagementService& DeviceManagementService::getInstance()
 {
-    if (!instance) {
+    std::call_once(onceFlag, []() {
         instance = new DeviceManagementService();
-    }
+    });
     return *instance;
 }
 

@@ -3,6 +3,23 @@
 #include <QDir>
 #include <QFileInfo>
 
+#include "PluginManager.h"
+#include <QDebug>
+#include <QDir>
+#include <QFileInfo>
+#include <mutex>
+
+static std::once_flag onceFlag;
+static PluginManager* instance = nullptr;
+
+PluginManager& PluginManager::getInstance()
+{
+    std::call_once(onceFlag, []() {
+        instance = new PluginManager();
+    });
+    return *instance;
+}
+
 PluginManager::PluginManager(QObject *parent)
     : QObject(parent) {
 }

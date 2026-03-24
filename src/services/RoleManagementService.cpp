@@ -344,14 +344,13 @@ bool RoleManagementService::validateRolePermission(int roleId, const QString &pe
     return permissions.contains(permission);
 }
 
+#include "AuthService.h"
+
+// ... a few lines later ...
+
 bool RoleManagementService::checkOperatorPermission(int operatorId, const QString &operation) const
 {
-    // 在实际实现中，这里会检查操作者的权限
-    // 检查该操作者是否有执行指定操作的权限
-    // 简化实现，返回true
-    Q_UNUSED(operatorId)
-    Q_UNUSED(operation)
-    return true;
+    return AuthService::validateUserPermission(operatorId, operation);
 }
 
 bool RoleManagementService::logRoleOperation(int roleId, int operatorId, const QString &operation, const QString &details) const

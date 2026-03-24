@@ -1,4 +1,9 @@
 #include "BurnOutputPage.h"
+#include "../services/TaskService.h"
+#include "../services/AuthService.h"
+#include "../services/SerialNumberService.h"
+#include "../services/BarcodeService.h"
+#include "../common/repository/task_repository.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -17,16 +22,16 @@
 #include <QProgressBar>
 #include <QDateTime>
 #include <QTableWidgetItem>
-#include <QAction>
 #include <QRadioButton>
 #include <QButtonGroup>
+#include <QDebug>
 
 BurnOutputPage::BurnOutputPage(QWidget *parent)
     : QWidget(parent)
+    , m_currentPage(1)
+    , m_pageSize(10)
+    , m_totalCount(0)
 {
-    mCurrentPage = 1;
-    mPageSize = 10;
-    mTotalCount = 0;
     setupUI();
 }
 
@@ -170,7 +175,7 @@ void BurnOutputPage::setupPagination()
     m_nextPageButton = new QPushButton("下一页", this);
     m_pageSpinBox = new QSpinBox(this);
     m_pageSpinBox->setRange(1, 9999);
-    m_pageSpinBox->setValue(mCurrentPage);
+    m_pageSpinBox->setValue(m_currentPage);
 
     m_pageSizeCombo = new QComboBox(this);
     m_pageSizeCombo->addItem("10 条/页", 10);
@@ -180,32 +185,32 @@ void BurnOutputPage::setupPagination()
     m_pageSizeCombo->setCurrentIndex(0);
 
     connect(m_prevPageButton, &QPushButton::clicked, [this]() {
-        if (mCurrentPage > 1) {
-            mCurrentPage--;
-            m_pageSpinBox->setValue(mCurrentPage);
+        if (m_currentPage > 1) {
+            m_currentPage--;
+            m_pageSpinBox->setValue(m_currentPage);
             refreshTasks();
         }
     });
 
     connect(m_nextPageButton, &QPushButton::clicked, [this]() {
-        if (mCurrentPage < (mTotalCount + mPageSize - 1) / mPageSize) {
-            mCurrentPage++;
-            m_pageSpinBox->setValue(mCurrentPage);
+        if (m_currentPage < (m_totalCount + m_pageSize - 1) / m_pageSize) {
+            m_currentPage++;
+            m_pageSpinBox->setValue(m_currentPage);
             refreshTasks();
         }
     });
 
     connect(m_pageSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), [this](int value) {
-        if (value >= 1 && value <= (mTotalCount + mPageSize - 1) / mPageSize) {
-            mCurrentPage = value;
+        if (value >= 1 && value <= (m_totalCount + m_pageSize - 1) / m_pageSize) {
+            m_currentPage = value;
             refreshTasks();
         }
     });
 
     connect(m_pageSizeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), [this](int index) {
-        mPageSize = m_pageSizeCombo->currentData().toInt();
-        mCurrentPage = 1;
-        m_pageSpinBox->setValue(mCurrentPage);
+        m_pageSize = m_pageSizeCombo->currentData().toInt();
+        m_currentPage = 1;
+        m_pageSpinBox->setValue(m_currentPage);
         refreshTasks();
     });
 
@@ -214,7 +219,7 @@ void BurnOutputPage::setupPagination()
     m_paginationLayout->addWidget(m_prevPageButton);
     m_paginationLayout->addWidget(m_pageSpinBox);
     m_paginationLayout->addWidget(new QLabel("/", this));
-    m_totalPagesLabel = new QLabel(QString::number((mTotalCount + mPageSize - 1) / mPageSize), this);
+    m_totalPagesLabel = new QLabel(QString::number((m_totalCount + m_pageSize - 1) / m_pageSize), this);
     m_paginationLayout->addWidget(m_totalPagesLabel);
     m_paginationLayout->addWidget(m_nextPageButton);
     m_paginationLayout->addWidget(m_pageSizeCombo);
@@ -224,55 +229,117 @@ void BurnOutputPage::setupPagination()
 
 void BurnOutputPage::refreshTasks()
 {
+    loadTasksFromDatabase();
+}
+
+void BurnOutputPage::loadTasksFromDatabase()
+{
     // Clear existing items
     m_taskTable->setRowCount(0);
+    m_taskList.clear();
 
-    // Simulate loading data - in real implementation this would fetch from database
-    // For demo purposes, we'll create sample data
-    for (int i = 0; i < 12; ++i) {
+    // Get filter values
+    QString statusFilter = m_statusCombo->currentData().toString();
+    QString mediaTypeFilter = m_mediaTypeCombo->currentData().toString();
+    QString searchText = m_searchEdit->text().trimmed();
+    QDate startDate = m_startDateEdit->date();
+    QDate endDate = m_endDateEdit->date();
+
+    // Get task list from TaskService
+    TaskService &taskService = TaskService::getInstance();
+
+    // Get all burn tasks (type = "BURN")
+    int offset = (m_currentPage - 1) * m_pageSize;
+    QString statusQueryParam = statusFilter.isEmpty() ? QString() : statusFilter.toUpper();
+    QList<Task> allTasks = taskService.getTasksByType("BURN", statusQueryParam, m_pageSize, offset);
+
+    // Store all tasks for filtering
+    m_taskList = allTasks;
+
+    // Populate table with task data
+    for (const Task &task : m_taskList) {
+        // Apply client-side filters
+        if (!searchText.isEmpty() && !task.getTitle().contains(searchText, Qt::CaseInsensitive)) {
+            continue;
+        }
+
+        // Media type filter
+        if (!mediaTypeFilter.isEmpty()) {
+            QString taskMediaType = task.getMediaType().toLower();
+            if (mediaTypeFilter.toLower() != taskMediaType) continue;
+        }
+
+        // Date filter
+        QDateTime createTime = task.getCreateTime();
+        if (createTime.date() < startDate || createTime.date() > endDate) {
+            continue;
+        }
+
         int row = m_taskTable->rowCount();
         m_taskTable->insertRow(row);
 
         // Checkbox column
         QCheckBox *checkBox = new QCheckBox();
+        checkBox->setProperty("taskId", task.getId());
         m_taskTable->setCellWidget(row, 0, checkBox);
 
         // Task ID
-        m_taskTable->setItem(row, 1, new QTableWidgetItem(QString("BT%1").arg(i+2001)));
+        m_taskTable->setItem(row, 1, new QTableWidgetItem(QString::number(task.getId())));
 
         // Document title
-        m_taskTable->setItem(row, 2, new QTableWidgetItem(QString("光盘内容 %1").arg(i+1)));
+        m_taskTable->setItem(row, 2, new QTableWidgetItem(task.getTitle()));
 
-        // Applicant
-        m_taskTable->setItem(row, 3, new QTableWidgetItem(QString("申请人 %1").arg(i%5 + 1)));
+        // Applicant - get from user info, for now use user ID
+        m_taskTable->setItem(row, 3, new QTableWidgetItem(QString("用户%1").arg(task.getUserId())));
 
         // Media type
-        QStringList mediaTypes = {"CD-R", "DVD-R", "BD-R", "CD-RW", "DVD-RW"};
-        QString mediaType = mediaTypes[i % mediaTypes.length()];
-        m_taskTable->setItem(row, 4, new QTableWidgetItem(mediaType));
+        m_taskTable->setItem(row, 4, new QTableWidgetItem(mediaTypeToDisplay(task.getMediaType())));
 
         // Copies
-        m_taskTable->setItem(row, 5, new QTableWidgetItem(QString::number((i % 10) + 1)));
+        m_taskTable->setItem(row, 5, new QTableWidgetItem(QString::number(task.getCopies())));
 
         // Status
-        QStringList statuses = {"待刻录", "刻录中", "已完成", "已取消", "已拒绝"};
-        QString status = statuses[i % statuses.length()];
-        m_taskTable->setItem(row, 6, new QTableWidgetItem(status));
+        m_taskTable->setItem(row, 6, new QTableWidgetItem(statusToDisplay(task.getStatus())));
 
         // Apply time
-        QDateTime time = QDateTime::currentDateTime().addDays(-i);
-        m_taskTable->setItem(row, 7, new QTableWidgetItem(time.toString("yyyy-MM-dd hh:mm:ss")));
+        m_taskTable->setItem(row, 7, new QTableWidgetItem(createTime.toString("yyyy-MM-dd hh:mm:ss")));
     }
 
     // Update pagination info
-    mTotalCount = 12; // In real implementation, this would come from data source
-    int totalPages = (mTotalCount + mPageSize - 1) / mPageSize;
+    m_totalCount = m_taskList.size();
+    int totalPages = (m_totalCount + m_pageSize - 1) / m_pageSize;
+    if (totalPages < 1) totalPages = 1;
     m_pageInfoLabel->setText(QString("共 %1 条记录，第 %2/%3 页")
-                                .arg(mTotalCount)
-                                .arg(mCurrentPage)
+                                .arg(m_totalCount)
+                                .arg(m_currentPage)
                                 .arg(totalPages));
     m_totalPagesLabel->setText(QString::number(totalPages));
     m_pageSpinBox->setMaximum(totalPages);
+}
+
+QString BurnOutputPage::statusToDisplay(const QString &status) const
+{
+    QString statusUpper = status.toUpper();
+    if (statusUpper == "PENDING") return "待刻录";
+    if (statusUpper == "APPROVED") return "已批准";
+    if (statusUpper == "IN_PROGRESS") return "刻录中";
+    if (statusUpper == "BURNING") return "刻录中";
+    if (statusUpper == "COMPLETED") return "已完成";
+    if (statusUpper == "FAILED") return "执行失败";
+    if (statusUpper == "CANCELLED") return "已取消";
+    if (statusUpper == "REJECTED") return "已拒绝";
+    return status;
+}
+
+QString BurnOutputPage::mediaTypeToDisplay(const QString &mediaType) const
+{
+    QString mtLower = mediaType.toLower();
+    if (mtLower == "cdr" || mtLower == "cd-r") return "CD-R";
+    if (mtLower == "dvdr" || mtLower == "dvd-r") return "DVD-R";
+    if (mtLower == "bdr" || mtLower == "bd-r") return "BD-R";
+    if (mtLower == "cdrw" || mtLower == "cd-rw") return "CD-RW";
+    if (mtLower == "dvdrw" || mtLower == "dvd-rw") return "DVD-RW";
+    return mediaType;
 }
 
 void BurnOutputPage::filterTasks()
@@ -290,54 +357,169 @@ void BurnOutputPage::sortTasks(int column)
 
 void BurnOutputPage::approveSelected()
 {
-    int selectedCount = 0;
+    QList<int> selectedTaskIds;
     for (int i = 0; i < m_taskTable->rowCount(); ++i) {
         QCheckBox *checkBox = qobject_cast<QCheckBox*>(m_taskTable->cellWidget(i, 0));
         if (checkBox && checkBox->isChecked()) {
-            selectedCount++;
+            int taskId = checkBox->property("taskId").toInt();
+            selectedTaskIds.append(taskId);
         }
     }
 
-    if (selectedCount == 0) {
+    if (selectedTaskIds.isEmpty()) {
         QMessageBox::information(this, "提示", "请先选择要批准的任务");
         return;
     }
 
-    QMessageBox::information(this, "提示", QString("已批准 %1 个任务").arg(selectedCount));
+    // Get current user for approval
+    AuthService &authService = AuthService::getInstance();
+    User currentUser = authService.getCurrentUser();
+    QString approver = currentUser.getUsername().isEmpty() ? "admin" : currentUser.getUsername();
+
+    TaskService &taskService = TaskService::getInstance();
+    int successCount = 0;
+
+    for (int taskId : selectedTaskIds) {
+        if (taskService.submitApproval(taskId, approver, true, "批量批准")) {
+            successCount++;
+        }
+    }
+
+    QMessageBox::information(this, "提示", QString("已批准 %1 个任务").arg(successCount));
+    refreshTasks();
 }
 
 void BurnOutputPage::rejectSelected()
 {
-    int selectedCount = 0;
+    QList<int> selectedTaskIds;
     for (int i = 0; i < m_taskTable->rowCount(); ++i) {
         QCheckBox *checkBox = qobject_cast<QCheckBox*>(m_taskTable->cellWidget(i, 0));
         if (checkBox && checkBox->isChecked()) {
-            selectedCount++;
+            int taskId = checkBox->property("taskId").toInt();
+            selectedTaskIds.append(taskId);
         }
     }
 
-    if (selectedCount == 0) {
+    if (selectedTaskIds.isEmpty()) {
         QMessageBox::information(this, "提示", "请先选择要拒绝的任务");
         return;
     }
 
-    QMessageBox::information(this, "提示", QString("已拒绝 %1 个任务").arg(selectedCount));
+    // Get current user for rejection
+    AuthService &authService = AuthService::getInstance();
+    User currentUser = authService.getCurrentUser();
+    QString approver = currentUser.getUsername().isEmpty() ? "admin" : currentUser.getUsername();
+
+    TaskService &taskService = TaskService::getInstance();
+    int successCount = 0;
+
+    for (int taskId : selectedTaskIds) {
+        if (taskService.submitApproval(taskId, approver, false, "批量拒绝")) {
+            successCount++;
+        }
+    }
+
+    QMessageBox::information(this, "提示", QString("已拒绝 %1 个任务").arg(successCount));
+    refreshTasks();
 }
 
 void BurnOutputPage::burnSelected()
 {
-    int selectedCount = 0;
+    QList<int> selectedTaskIds;
     for (int i = 0; i < m_taskTable->rowCount(); ++i) {
         QCheckBox *checkBox = qobject_cast<QCheckBox*>(m_taskTable->cellWidget(i, 0));
         if (checkBox && checkBox->isChecked()) {
-            selectedCount++;
+            int taskId = checkBox->property("taskId").toInt();
+            selectedTaskIds.append(taskId);
         }
     }
 
-    if (selectedCount == 0) {
+    if (selectedTaskIds.isEmpty()) {
         QMessageBox::information(this, "提示", "请先选择要刻录的任务");
         return;
     }
 
-    QMessageBox::information(this, "提示", QString("正在执行 %1 个刻录任务").arg(selectedCount));
+    TaskService &taskService = TaskService::getInstance();
+    SerialNumberService &serialService = SerialNumberService::getInstance();
+    TaskRepository taskRepo;
+    int successCount = 0;
+    int failCount = 0;
+
+    for (int taskId : selectedTaskIds) {
+        // Get task details
+        Task task = taskService.getTaskById(taskId);
+        if (task.getId() > 0 && task.getStatus().toUpper() == "APPROVED") {
+            bool executionSuccess = false;
+            QString failReason;
+
+            try {
+                // Generate serial number
+                QString serialNumber = serialService.generateSerialNumber(SerialNumberConfigType::BURN);
+                if (serialNumber.isEmpty()) {
+                    failReason = "Failed to generate serial number";
+                    qDebug() << "Failed to generate serial number for task:" << taskId;
+                } else {
+                    // Update task status to burning and set serial number
+                    if (taskService.updateTaskStatus(taskId, "BURNING")) {
+                        // Update serial number in database
+                        if (taskRepo.updateSerialNumber(taskId, serialNumber)) {
+                            qDebug() << "Task" << taskId << "assigned serial number:" << serialNumber;
+
+                            // Generate barcode
+                            BarcodeService &barcodeService = BarcodeService::getInstance();
+                            BarcodeConfig config = barcodeService.getConfigByType(1);  // 1 = BURN
+                            QString barcodeContent = barcodeService.generateBarcodeContent(task, config);
+
+                            if (!barcodeContent.isEmpty()) {
+                                QString barcodePath = QString("/tmp/barcode_%1.png").arg(serialNumber);
+                                if (barcodeService.saveBarcodeToFile(barcodeContent, barcodePath,
+                                                                      config.getBarcodeWidth(),
+                                                                      config.getBarcodeHeight())) {
+                                    qDebug() << "Barcode saved to:" << barcodePath;
+                                } else {
+                                    qDebug() << "Failed to save barcode for task:" << taskId;
+                                }
+                            }
+
+                            // In real implementation, this would trigger actual burning
+                            // For now, mark as completed
+                            if (taskService.updateTaskStatus(taskId, "COMPLETED")) {
+                                executionSuccess = true;
+                                successCount++;
+                            } else {
+                                failReason = "Failed to update status to COMPLETED";
+                            }
+                        } else {
+                            failReason = "Failed to update serial number";
+                            qDebug() << "Failed to update serial number for task:" << taskId;
+                        }
+                    } else {
+                        failReason = "Failed to update status to BURNING";
+                    }
+                }
+            } catch (const std::exception& e) {
+                failReason = QString("Exception: %1").arg(e.what());
+                qDebug() << "Exception during burn execution for task:" << taskId << "-" << e.what();
+            } catch (...) {
+                failReason = "Unknown exception";
+                qDebug() << "Unknown exception during burn execution for task:" << taskId;
+            }
+
+            if (!executionSuccess) {
+                // Update status to FAILED
+                taskService.updateTaskStatus(taskId, "FAILED");
+                qDebug() << "Task execution failed for task:" << taskId << "reason:" << failReason;
+                failCount++;
+            }
+        }
+    }
+
+    QString message;
+    if (failCount > 0) {
+        message = QString("刻录完成: 成功 %1 个, 失败 %2 个").arg(successCount).arg(failCount);
+    } else {
+        message = QString("正在执行 %1 个刻录任务").arg(successCount);
+    }
+    QMessageBox::information(this, "提示", message);
+    refreshTasks();
 }

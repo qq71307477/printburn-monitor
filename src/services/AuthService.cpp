@@ -2,6 +2,7 @@
 #include "src/common/repository/user_repository.h"
 #include "src/common/repository/role_repository.h"
 #include "models/user_model.h"
+#include "common/PluginManager.h"
 #include <QCryptographicHash>
 #include <QRegularExpression>
 #include <QStringList>
@@ -41,7 +42,11 @@ bool AuthService::authenticate(const QString &username, const QString &password)
         m_isLoggedIn = true;
 
         // 记录登录日志
-        // TODO: 实际实现中应该调用安全插件记录审计日志
+        QVariantMap logParams;
+        logParams["userId"] = user.getId();
+        logParams["action"] = "LOGIN";
+        logParams["resource"] = user.getUsername();
+        PluginManager::getInstance().executePlugin("SecurityPlugin", "generateAuditLog", logParams);
 
         return true;
     }
@@ -53,7 +58,11 @@ bool AuthService::logout()
 {
     if (m_isLoggedIn) {
         // 记录登出日志
-        // TODO: 实际实现中应该调用安全插件记录审计日志
+        QVariantMap logParams;
+        logParams["userId"] = m_currentUser.getId();
+        logParams["action"] = "LOGOUT";
+        logParams["resource"] = m_currentUser.getUsername();
+        PluginManager::getInstance().executePlugin("SecurityPlugin", "generateAuditLog", logParams);
 
         m_currentUser = User();
         m_isLoggedIn = false;
@@ -124,6 +133,71 @@ bool AuthService::hasPermission(const QString &permission) const
         }
 
         // 权限字符串格式为逗号分隔的权限列表，如 "CREATE_USER,UPDATE_USER,DELETE_USER"
+        QStringList permissionList = permissionsStr.split(',', QString::SkipEmptyParts);
+        for (QString &perm : permissionList) {
+            perm = perm.trimmed();
+            if (perm == permission || perm == "*") {
+                return true; // 找到匹配的权限或通配符权限
+            }
+        }
+    }
+
+    return false; // 未找到匹配的权限
+}
+
+QStringList AuthService::getCurrentUserRoleNames() const
+{
+    QStringList roleNames;
+
+    if (!m_isLoggedIn) {
+        return roleNames;
+    }
+
+    RoleRepository roleRepo;
+    QList<Role> roles = roleRepo.findByUserId(m_currentUser.getId());
+
+    for (const Role &role : roles) {
+        if (role.isActive()) {
+            roleNames.append(role.getName());
+        }
+    }
+
+    return roleNames;
+}
+
+bool AuthService::hasRole(const QString &roleName) const
+{
+    if (!m_isLoggedIn) {
+        return false;
+    }
+
+    QStringList roleNames = getCurrentUserRoleNames();
+bool AuthService::validateUserPermission(int userId, const QString &permission)
+{
+    if (permission.isEmpty()) {
+        return false;
+    }
+
+    // 检查用户的角色是否包含指定权限
+    RoleRepository roleRepo;
+    QList<Role> userRoles = roleRepo.findByUserId(userId);
+
+    if (userRoles.isEmpty()) {
+        return false;
+    }
+
+    for (const Role &role : userRoles) {
+        // 检查角色是否激活
+        if (!role.isActive()) {
+            continue;
+        }
+
+        QString permissionsStr = role.getPermissions();
+        if (permissionsStr.isEmpty()) {
+            continue;
+        }
+
+        // 权限字符串格式为逗号分隔的权限列表
         QStringList permissionList = permissionsStr.split(',', QString::SkipEmptyParts);
         for (QString &perm : permissionList) {
             perm = perm.trimmed();

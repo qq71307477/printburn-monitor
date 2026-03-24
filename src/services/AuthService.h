@@ -26,6 +26,16 @@ public:
     // 检查用户权限
     bool hasPermission(const QString &permission) const;
 
+    // 获取当前用户角色名称列表
+    QStringList getCurrentUserRoleNames() const;
+
+    // 检查当前用户是否拥有指定角色
+    bool hasRole(const QString &roleName) const;
+
+    // 静态方法，验证指定用户是否拥有特定权限
+    static bool validateUserPermission(int userId, const QString &permission);
+
+
 private:
     AuthService();  // 私有构造函数，确保单例
     ~AuthService();

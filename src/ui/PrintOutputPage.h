@@ -18,6 +18,8 @@
 #include <QHeaderView>
 #include <QCheckBox>
 #include <QProgressBar>
+#include <QList>
+#include "../../models/task_model.h"
 
 class PrintOutputPage : public QWidget
 {
@@ -39,6 +41,9 @@ private:
     void setupFilterControls();
     void setupTaskList();
     void setupPagination();
+    void loadTasksFromDatabase();
+    QString statusToDisplay(const QString &status) const;
+    QString priorityToDisplay(const QString &priority) const;
 
     // UI Components
     QVBoxLayout *m_layout;
@@ -77,9 +82,12 @@ private:
     QComboBox *m_pageSizeCombo;
 
     // Internal variables
-    int mCurrentPage;
-    int mPageSize;
-    int mTotalCount;
+    int m_currentPage;
+    int m_pageSize;
+    int m_totalCount;
+
+    // Task data
+    QList<Task> m_taskList;
 };
 
 #endif // PRINTOUTPUTPAGE_H

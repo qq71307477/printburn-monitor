@@ -28,6 +28,7 @@ public:
     QString getSessionMode() const { return QString::fromStdString(session_mode); }
     QDateTime getApprovalTime() const { return QDateTime::fromTime_t(approval_time); }
     QString getApprovalReason() const { return QString::fromStdString(approval_reason); }
+    QString getSerialNumber() const { return QString::fromStdString(serial_number); }
 
     // Setters
     void setId(int value) { id = value; }
@@ -47,6 +48,7 @@ public:
     void setSessionMode(const QString& value) { session_mode = value.toStdString(); }
     void setApprovalTime(const QDateTime& value) { approval_time = value.toTime_t(); }
     void setApprovalReason(const QString& value) { approval_reason = value.toStdString(); }
+    void setSerialNumber(const QString& value) { serial_number = value.toStdString(); }
 
     // Legacy struct members for backward compatibility
     int id;
@@ -74,6 +76,7 @@ private:
     std::string session_mode;
     std::time_t approval_time;
     std::string approval_reason;
+    std::string serial_number;
 };
 
 #endif // TASK_MODEL_H

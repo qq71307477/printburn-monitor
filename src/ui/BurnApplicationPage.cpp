@@ -1,4 +1,9 @@
 #include "BurnApplicationPage.h"
+#include "src/services/DeviceManagementService.h"
+#include "src/services/SecurityLevelService.h"
+#include "src/services/ApproverConfigService.h"
+#include "src/services/TaskService.h"
+#include "src/services/AuthService.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -18,6 +23,14 @@
 #include <QRadioButton>
 #include <QButtonGroup>
 #include <QFileInfo>
+
+// 格式化文件大小为人类可读格式
+static QString formatFileSize(qint64 bytes) {
+    if (bytes < 1024) return QString("%1 B").arg(bytes);
+    if (bytes < 1024 * 1024) return QString("%1 KB").arg(bytes / 1024.0, 0, 'f', 1);
+    if (bytes < 1024 * 1024 * 1024) return QString("%1 MB").arg(bytes / (1024.0 * 1024), 0, 'f', 1);
+    return QString("%1 GB").arg(bytes / (1024.0 * 1024 * 1024), 0, 'f', 1);
+}
 
 BurnApplicationPage::BurnApplicationPage(QWidget *parent)
     : QWidget(parent)
@@ -60,6 +73,24 @@ void BurnApplicationPage::setupApplicationForm()
     m_purposeEdit->setFixedHeight(60);
     m_purposeEdit->setPlaceholderText("请简要说明刻录目的");
     m_formLayout->addRow("刻录目的:", m_purposeEdit);
+
+    // 设备选择（刻录机）
+    m_deviceCombo = new QComboBox(this);
+    m_deviceCombo->setPlaceholderText("请选择刻录机");
+    loadDevices();
+    m_formLayout->addRow("刻录机:", m_deviceCombo);
+
+    // 密级选择
+    m_securityLevelCombo = new QComboBox(this);
+    m_securityLevelCombo->setPlaceholderText("请选择密级");
+    loadSecurityLevels();
+    m_formLayout->addRow("密级:", m_securityLevelCombo);
+
+    // 审批员选择
+    m_approverCombo = new QComboBox(this);
+    m_approverCombo->setPlaceholderText("请选择审批员");
+    loadApprovers();
+    m_formLayout->addRow("审批员:", m_approverCombo);
 
     // 介质类型
     m_mediaTypeCombo = new QComboBox(this);
@@ -120,11 +151,15 @@ void BurnApplicationPage::setupApplicationForm()
     connect(m_clearButton, &QPushButton::clicked, [this]() {
         m_documentTitleEdit->clear();
         m_purposeEdit->clear();
+        m_deviceCombo->setCurrentIndex(-1);
+        m_securityLevelCombo->setCurrentIndex(-1);
+        m_approverCombo->setCurrentIndex(-1);
         m_mediaTypeCombo->setCurrentIndex(0);
         m_singleSessionRadio->setChecked(true);
         m_copiesSpin->setValue(1);
         m_deadlineEdit->setDate(QDate::currentDate().addDays(7));
         m_filePathsEdit->clear();
+        m_selectedFiles.clear();
     });
 
     buttonLayout->addWidget(m_submitButton);
@@ -186,6 +221,7 @@ void BurnApplicationPage::browseFiles()
     );
 
     if (!fileNames.isEmpty()) {
+        m_selectedFiles = fileNames;
         m_filePathsEdit->setText(QString("%1 个文件").arg(fileNames.size()));
 
         // 更新预览表
@@ -195,7 +231,7 @@ void BurnApplicationPage::browseFiles()
             int row = m_previewTable->rowCount();
             m_previewTable->insertRow(row);
             m_previewTable->setItem(row, 0, new QTableWidgetItem(fileInfo.fileName()));
-            m_previewTable->setItem(row, 1, new QTableWidgetItem(QString::number(fileInfo.size())));
+            m_previewTable->setItem(row, 1, new QTableWidgetItem(formatFileSize(fileInfo.size())));
             m_previewTable->setItem(row, 2, new QTableWidgetItem(fileInfo.suffix()));
         }
     }
@@ -208,22 +244,115 @@ void BurnApplicationPage::submitApplication()
         return;
     }
 
-    if (m_filePathsEdit->text().isEmpty()) {
+    if (m_selectedFiles.isEmpty()) {
         QMessageBox::warning(this, "警告", "请选择要刻录的文件！");
         return;
     }
 
-    // 这里应该是实际的提交逻辑
-    // 在真实环境中，应该调用任务插件创建刻录任务
-    QMessageBox::information(this, "成功", "刻录申请已提交，请等待审批！");
+    if (m_deviceCombo->currentIndex() < 0) {
+        QMessageBox::warning(this, "警告", "请选择刻录机！");
+        return;
+    }
 
-    // 清空表单
-    m_documentTitleEdit->clear();
-    m_purposeEdit->clear();
-    m_mediaTypeCombo->setCurrentIndex(0);
-    m_singleSessionRadio->setChecked(true);
-    m_copiesSpin->setValue(1);
-    m_deadlineEdit->setDate(QDate::currentDate().addDays(7));
-    m_filePathsEdit->clear();
-    m_previewTable->setRowCount(0);
+    if (m_securityLevelCombo->currentIndex() < 0) {
+        QMessageBox::warning(this, "警告", "请选择密级！");
+        return;
+    }
+
+    if (m_approverCombo->currentIndex() < 0) {
+        QMessageBox::warning(this, "警告", "请选择审批员！");
+        return;
+    }
+
+    // 获取当前用户
+    User currentUser = AuthService::getInstance().getCurrentUser();
+
+    // 获取介质类型
+    QString mediaType = m_mediaTypeCombo->currentText();
+
+    // 获取会话模式
+    QString sessionMode = m_singleSessionRadio->isChecked() ? "single" : "multi";
+
+    // 创建刻录任务
+    bool success = TaskService::getInstance().createBurnTask(
+        currentUser,
+        m_documentTitleEdit->text(),
+        m_purposeEdit->toPlainText(),
+        m_copiesSpin->value(),
+        mediaType,
+        m_selectedFiles,
+        sessionMode
+    );
+
+    if (success) {
+        QMessageBox::information(this, "成功", "刻录申请已提交，请等待审批！");
+
+        // 清空表单
+        m_documentTitleEdit->clear();
+        m_purposeEdit->clear();
+        m_deviceCombo->setCurrentIndex(-1);
+        m_securityLevelCombo->setCurrentIndex(-1);
+        m_approverCombo->setCurrentIndex(-1);
+        m_mediaTypeCombo->setCurrentIndex(0);
+        m_singleSessionRadio->setChecked(true);
+        m_copiesSpin->setValue(1);
+        m_deadlineEdit->setDate(QDate::currentDate().addDays(7));
+        m_filePathsEdit->clear();
+        m_selectedFiles.clear();
+        m_previewTable->setRowCount(0);
+    } else {
+        QMessageBox::warning(this, "错误", "刻录申请提交失败，请重试！");
+    }
+}
+
+void BurnApplicationPage::loadDevices()
+{
+    m_deviceCombo->clear();
+
+    // 获取刻录机列表（设备类型为 "burner"）
+    QList<Device> burners = DeviceManagementService::getInstance().getDevicesByType("burner");
+
+    for (const Device &device : burners) {
+        m_deviceCombo->addItem(device.getName(), device.getId());
+    }
+}
+
+void BurnApplicationPage::loadSecurityLevels()
+{
+    m_securityLevelCombo->clear();
+
+    // 获取激活的密级列表
+    QList<SecurityLevel> levels = SecurityLevelService::getInstance().getActiveLevels();
+
+    for (const SecurityLevel &level : levels) {
+        m_securityLevelCombo->addItem(level.getLevelName(), level.getId());
+    }
+}
+
+void BurnApplicationPage::loadApprovers()
+{
+    m_approverCombo->clear();
+
+    // 获取刻录任务类型（task_type = 1）的审批员配置
+    QList<ApproverConfig> configs = ApproverConfigService::getInstance().getConfigsByTaskType(1);
+
+    // 获取审批角色列表用于显示名称
+    QList<QPair<int, QString>> approverRoles = ApproverConfigService::getInstance().getApproverRoles();
+
+    for (const ApproverConfig &config : configs) {
+        if (!config.isActive()) continue;
+
+        // 查找审批角色名称
+        QString roleName;
+        for (const auto &role : approverRoles) {
+            if (role.first == config.getApproverRoleId()) {
+                roleName = role.second;
+                break;
+            }
+        }
+
+        QString displayText = roleName.isEmpty() ?
+            QString("审批角色 #%1").arg(config.getApproverRoleId()) : roleName;
+        m_approverCombo->addItem(displayText, config.getId());
+    }
 }

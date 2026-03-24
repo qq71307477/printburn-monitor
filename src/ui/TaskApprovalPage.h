@@ -20,6 +20,11 @@
 #include <QProgressBar>
 #include <QRadioButton>
 #include <QButtonGroup>
+#include <QList>
+
+// Forward declarations
+class TaskService;
+class Task;
 
 class TaskApprovalPage : public QWidget
 {
@@ -42,6 +47,11 @@ private:
     void setupFilterControls();
     void setupTaskList();
     void setupPagination();
+    void populateTable(const QList<Task> &tasks);
+    QString getTaskTypeName(const QString &type) const;
+    QString getPriorityName(const QString &priority) const;
+    QString getStatusDisplayName(const QString &status) const;
+    QString getUserName(int userId) const;
 
     // UI Components
     QVBoxLayout *m_layout;
@@ -82,9 +92,13 @@ private:
     QComboBox *m_pageSizeCombo;
 
     // Internal variables
-    int mCurrentPage;
-    int mPageSize;
-    int mTotalCount;
+    int m_currentPage;
+    int m_pageSize;
+    int m_totalCount;
+    int m_sortColumn;
+    Qt::SortOrder m_sortOrder;
+    QList<Task> m_allTasks;
+    QList<Task> m_filteredTasks;
 };
 
 #endif // TASKAPPROVALPAGE_H

@@ -11,8 +11,11 @@ class PluginManager : public QObject {
     Q_OBJECT
 
 public:
-    explicit PluginManager(QObject *parent = nullptr);
-    ~PluginManager();
+    static PluginManager& getInstance();
+
+    // Deleted copy constructor and assignment operator
+    PluginManager(const PluginManager&) = delete;
+    PluginManager& operator=(const PluginManager&) = delete;
 
     // 加载插件
     bool loadPlugin(const QString &pluginPath);
@@ -33,6 +36,9 @@ public:
     void cleanupAllPlugins();
 
 private:
+    explicit PluginManager(QObject *parent = nullptr);
+    ~PluginManager();
+
     struct PluginData {
         IPlugin *instance = nullptr;
         QLibrary *library = nullptr;

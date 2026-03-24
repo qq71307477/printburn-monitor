@@ -5,15 +5,17 @@
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QDebug>
+#include <mutex>
 
 // 静态实例
+static std::once_flag onceFlag;
 static SensitiveWordsService* instance = nullptr;
 
 SensitiveWordsService& SensitiveWordsService::getInstance()
 {
-    if (!instance) {
+    std::call_once(onceFlag, []() {
         instance = new SensitiveWordsService();
-    }
+    });
     return *instance;
 }
 

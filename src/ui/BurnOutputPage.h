@@ -20,6 +20,8 @@
 #include <QProgressBar>
 #include <QRadioButton>
 #include <QButtonGroup>
+#include <QList>
+#include "../../models/task_model.h"
 
 class BurnOutputPage : public QWidget
 {
@@ -41,6 +43,9 @@ private:
     void setupFilterControls();
     void setupTaskList();
     void setupPagination();
+    void loadTasksFromDatabase();
+    QString statusToDisplay(const QString &status) const;
+    QString mediaTypeToDisplay(const QString &mediaType) const;
 
     // UI Components
     QVBoxLayout *m_layout;
@@ -79,9 +84,12 @@ private:
     QComboBox *m_pageSizeCombo;
 
     // Internal variables
-    int mCurrentPage;
-    int mPageSize;
-    int mTotalCount;
+    int m_currentPage;
+    int m_pageSize;
+    int m_totalCount;
+
+    // Task data
+    QList<Task> m_taskList;
 };
 
 #endif // BURNOUTPUTPAGE_H

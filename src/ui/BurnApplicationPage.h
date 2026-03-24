@@ -18,6 +18,7 @@
 #include <QMessageBox>
 #include <QRadioButton>
 #include <QButtonGroup>
+#include <QStringList>
 
 class BurnApplicationPage : public QWidget
 {
@@ -35,6 +36,9 @@ private:
     void setupApplicationForm();
     void setupDocumentPreview();
     void setupApplicationHistory();
+    void loadDevices();
+    void loadSecurityLevels();
+    void loadApprovers();
 
     // UI Components
     QVBoxLayout *m_layout;
@@ -44,6 +48,9 @@ private:
     QFormLayout *m_formLayout;
     QLineEdit *m_documentTitleEdit;
     QTextEdit *m_purposeEdit;
+    QComboBox *m_deviceCombo;
+    QComboBox *m_securityLevelCombo;
+    QComboBox *m_approverCombo;
     QComboBox *m_mediaTypeCombo;
     QRadioButton *m_singleSessionRadio;
     QRadioButton *m_multiSessionRadio;
@@ -52,6 +59,7 @@ private:
     QDateEdit *m_deadlineEdit;
     QLineEdit *m_filePathsEdit;
     QPushButton *m_browseButton;
+    QStringList m_selectedFiles;
 
     // Document Preview
     QGroupBox *m_documentPreviewGroup;

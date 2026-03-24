@@ -1,6 +1,11 @@
 #include "department_repository.h"
 #include <QVariant>
 
+// Static member initialization
+DatabaseManager* DepartmentRepository::default_db_manager_ = nullptr;
+
+DepartmentRepository::DepartmentRepository() : db_manager_(default_db_manager_) {}
+
 DepartmentRepository::DepartmentRepository(DatabaseManager* db_manager) : db_manager_(db_manager) {}
 
 bool DepartmentRepository::create_table() {

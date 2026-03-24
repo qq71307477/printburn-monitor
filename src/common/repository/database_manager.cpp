@@ -19,6 +19,9 @@ DatabaseManager::~DatabaseManager() {
     }
 }
 
+#include <QCryptographicHash>
+#include <QVariant>
+
 bool DatabaseManager::initialize() {
     QString init_sql = R"(
         PRAGMA foreign_keys = ON;
@@ -37,8 +40,8 @@ bool DatabaseManager::initialize() {
             user_id INTEGER NOT NULL,
             role_id INTEGER NOT NULL,
             PRIMARY KEY (user_id, role_id),
-            FOREIGN KEY (user_id) REFERENCES users(id),
-            FOREIGN KEY (role_id) REFERENCES roles(id)
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS departments (
@@ -50,16 +53,15 @@ bool DatabaseManager::initialize() {
             is_active BOOLEAN DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (manager_id) REFERENCES users(id),
-            FOREIGN KEY (parent_department_id) REFERENCES departments(id)
+            FOREIGN KEY (manager_id) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (parent_department_id) REFERENCES departments(id) ON DELETE SET NULL
         );
 
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
-            email TEXT NOT NULL UNIQUE,
-            role_id INTEGER NOT NULL,
+            email TEXT UNIQUE,
             department_id INTEGER,
             first_name TEXT,
             last_name TEXT,
@@ -67,8 +69,7 @@ bool DatabaseManager::initialize() {
             is_active BOOLEAN DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (role_id) REFERENCES roles(id),
-            FOREIGN KEY (department_id) REFERENCES departments(id)
+            FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL
         );
 
         CREATE TABLE IF NOT EXISTS devices (
@@ -85,7 +86,7 @@ bool DatabaseManager::initialize() {
             last_seen DATETIME,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (assigned_user_id) REFERENCES users(id)
+            FOREIGN KEY (assigned_user_id) REFERENCES users(id) ON DELETE SET NULL
         );
 
         CREATE TABLE IF NOT EXISTS tasks (
@@ -108,7 +109,6 @@ bool DatabaseManager::initialize() {
 
         CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-        CREATE INDEX IF NOT EXISTS idx_users_role_id ON users(role_id);
         CREATE INDEX IF NOT EXISTS idx_users_department_id ON users(department_id);
         CREATE INDEX IF NOT EXISTS idx_devices_device_id ON devices(device_id);
         CREATE INDEX IF NOT EXISTS idx_devices_assigned_user ON devices(assigned_user_id);
@@ -119,10 +119,209 @@ bool DatabaseManager::initialize() {
         CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
         CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
         CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
+
+        CREATE TABLE IF NOT EXISTS security_levels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            level_code TEXT NOT NULL UNIQUE,
+            level_name TEXT NOT NULL,
+            retention_days INTEGER DEFAULT 30,
+            timeout_minutes INTEGER DEFAULT 30,
+            description TEXT,
+            is_active BOOLEAN DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_security_levels_code ON security_levels(level_code);
+        CREATE INDEX IF NOT EXISTS idx_security_levels_active ON security_levels(is_active);
+
+        CREATE TABLE IF NOT EXISTS serial_number_configs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            config_type INTEGER NOT NULL UNIQUE,
+            prefix TEXT NOT NULL DEFAULT '',
+            date_format TEXT NOT NULL DEFAULT 'yyyyMMdd',
+            sequence_length INTEGER NOT NULL DEFAULT 4,
+            current_sequence INTEGER NOT NULL DEFAULT 0,
+            reset_period INTEGER NOT NULL DEFAULT 0,
+            last_reset_date DATE,
+            is_active BOOLEAN DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_serial_configs_type ON serial_number_configs(config_type);
+
+        CREATE TABLE IF NOT EXISTS approver_configs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_type INTEGER NOT NULL,
+            approver_role_id INTEGER NOT NULL,
+            min_security_level_id INTEGER NOT NULL,
+            max_security_level_id INTEGER NOT NULL,
+            is_active BOOLEAN DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (approver_role_id) REFERENCES roles(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_approver_configs_task_type ON approver_configs(task_type);
+        CREATE INDEX IF NOT EXISTS idx_approver_configs_approver_role ON approver_configs(approver_role_id);
+        CREATE INDEX IF NOT EXISTS idx_approver_configs_security_level ON approver_configs(min_security_level_id, max_security_level_id);
+        CREATE INDEX IF NOT EXISTS idx_approver_configs_is_active ON approver_configs(is_active);
+
+        CREATE TABLE IF NOT EXISTS barcode_configs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code_type INTEGER NOT NULL UNIQUE,
+            format_string TEXT DEFAULT '{task_id}-{date}-{seq}',
+            include_task_id BOOLEAN DEFAULT 1,
+            include_date BOOLEAN DEFAULT 1,
+            include_security_level BOOLEAN DEFAULT 1,
+            include_applicant BOOLEAN DEFAULT 1,
+            include_serial_number BOOLEAN DEFAULT 1,
+            width INTEGER DEFAULT 200,
+            height INTEGER DEFAULT 100,
+            margin INTEGER DEFAULT 10,
+            is_active BOOLEAN DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_barcode_configs_code_type ON barcode_configs(code_type);
+        CREATE INDEX IF NOT EXISTS idx_barcode_configs_is_active ON barcode_configs(is_active);
+
+        CREATE TABLE IF NOT EXISTS proxy_approvers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_user_id INTEGER NOT NULL,
+            proxy_user_id INTEGER NOT NULL,
+            min_security_level_id INTEGER DEFAULT 0,
+            max_security_level_id INTEGER DEFAULT 9999,
+            task_type INTEGER DEFAULT 2,
+            start_date DATE,
+            end_date DATE,
+            enabled INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (owner_user_id) REFERENCES users(id),
+            FOREIGN KEY (proxy_user_id) REFERENCES users(id),
+            FOREIGN KEY (min_security_level_id) REFERENCES security_levels(id),
+            FOREIGN KEY (max_security_level_id) REFERENCES security_levels(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_proxy_approvers_owner ON proxy_approvers(owner_user_id);
+        CREATE INDEX IF NOT EXISTS idx_proxy_approvers_proxy ON proxy_approvers(proxy_user_id);
+        CREATE INDEX IF NOT EXISTS idx_proxy_approvers_min_security ON proxy_approvers(min_security_level_id);
+        CREATE INDEX IF NOT EXISTS idx_proxy_approvers_max_security ON proxy_approvers(max_security_level_id);
+        CREATE INDEX IF NOT EXISTS idx_proxy_approvers_task_type ON proxy_approvers(task_type);
+        CREATE INDEX IF NOT EXISTS idx_proxy_approvers_enabled ON proxy_approvers(enabled);
+        CREATE INDEX IF NOT EXISTS idx_proxy_approvers_dates ON proxy_approvers(start_date, end_date);
     )";
 
-    return execute_query(init_sql);
+    if (!execute_query(init_sql)) {
+        return false;
+    }
+
+    // 检查是否需要插入默认数据
+    QSqlQuery count_query("SELECT COUNT(*) FROM users", db_);
+    if (count_query.exec() && count_query.next() && count_query.value(0).toInt() == 0) {
+        qDebug() << "Database is empty, populating with default data.";
+        return populate_default_data();
+    }
+
+    return true;
 }
+
+bool DatabaseManager::populate_default_data() {
+    begin_transaction();
+
+    // 默认密码 "123456" 的 SHA256 哈希值
+    QString default_password_hash = QString(QCryptographicHash::hash(QByteArray("123456"), QCryptographicHash::Sha256).toHex());
+
+    // 1. 创建角色
+    QSqlQuery role_query(db_);
+    role_query.prepare("INSERT INTO roles (name, description, permissions) VALUES (?, ?, ?)");
+
+    // 系统管理员
+    role_query.bindValue(0, "系统管理员");
+    role_query.bindValue(1, "负责系统的日常维护和管理");
+    role_query.bindValue(2, "manage_users,manage_roles,manage_departments,manage_devices,view_logs");
+    if (!role_query.exec()) { rollback_transaction(); return false; }
+    int admin_role_id = role_query.lastInsertId().toInt();
+
+    // 安全保密员
+    role_query.bindValue(0, "安全保密员");
+    role_query.bindValue(1, "负责安全策略的配置和审批");
+    role_query.bindValue(2, "manage_security_policies,approve_tasks,manage_approvers");
+    if (!role_query.exec()) { rollback_transaction(); return false; }
+    int sec_role_id = role_query.lastInsertId().toInt();
+
+    // 安全审计员
+    role_query.bindValue(0, "安全审计员");
+    role_query.bindValue(1, "负责审计系统日志和操作记录");
+    role_query.bindValue(2, "view_audit_logs,export_logs");
+    if (!role_query.exec()) { rollback_transaction(); return false; }
+    int audit_role_id = role_query.lastInsertId().toInt();
+
+    // 普通用户
+    role_query.bindValue(0, "普通用户");
+    role_query.bindValue(1, "只能申请打印和刻录任务");
+    role_query.bindValue(2, "apply_print_task,apply_burn_task,view_my_tasks");
+    if (!role_query.exec()) { rollback_transaction(); return false; }
+    int user_role_id = role_query.lastInsertId().toInt();
+
+
+    // 2. 创建用户
+    QSqlQuery user_query(db_);
+    user_query.prepare("INSERT INTO users (username, password_hash, email) VALUES (?, ?, ?)");
+
+    // admin
+    user_query.bindValue(0, "admin");
+    user_query.bindValue(1, default_password_hash);
+    user_query.bindValue(2, "admin@example.com");
+    if (!user_query.exec()) { rollback_transaction(); return false; }
+    int admin_user_id = user_query.lastInsertId().toInt();
+
+    // secadmin
+    user_query.bindValue(0, "secadmin");
+    user_query.bindValue(1, default_password_hash);
+    user_query.bindValue(2, "secadmin@example.com");
+    if (!user_query.exec()) { rollback_transaction(); return false; }
+    int sec_user_id = user_query.lastInsertId().toInt();
+
+    // auditor
+    user_query.bindValue(0, "auditor");
+    user_query.bindValue(1, default_password_hash);
+    user_query.bindValue(2, "auditor@example.com");
+    if (!user_query.exec()) { rollback_transaction(); return false; }
+    int audit_user_id = user_query.lastInsertId().toInt();
+
+    // testuser
+    user_query.bindValue(0, "testuser");
+    user_query.bindValue(1, default_password_hash);
+    user_query.bindValue(2, "testuser@example.com");
+    if (!user_query.exec()) { rollback_transaction(); return false; }
+    int test_user_id = user_query.lastInsertId().toInt();
+
+    // 3. 关联用户和角色
+    QSqlQuery user_role_query(db_);
+    user_role_query.prepare("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)");
+
+    user_role_query.bindValue(0, admin_user_id);
+    user_role_query.bindValue(1, admin_role_id);
+    if (!user_role_query.exec()) { rollback_transaction(); return false; }
+
+    user_role_query.bindValue(0, sec_user_id);
+    user_role_query.bindValue(1, sec_role_id);
+    if (!user_role_query.exec()) { rollback_transaction(); return false; }
+
+    user_role_query.bindValue(0, audit_user_id);
+    user_role_query.bindValue(1, audit_role_id);
+    if (!user_role_query.exec()) { rollback_transaction(); return false; }
+
+    user_role_query.bindValue(0, test_user_id);
+    user_role_query.bindValue(1, user_role_id);
+    if (!user_role_query.exec()) { rollback_transaction(); return false; }
+
+    return commit_transaction();
+
 
 bool DatabaseManager::execute_query(const QString& sql) {
     QSqlQuery query(db_);
