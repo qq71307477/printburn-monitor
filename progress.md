@@ -31,7 +31,7 @@
 
 ```
 Linux (Alibaba Cloud Linux 3, Qt 5.15.3):
-- 主程序: PrintBurnMonitor (1.6MB) ✅
+- 主程序: PrintBurnMonitor (1.8MB) ✅
 - 插件: Client, Task, Approval, Security ✅
 - 测试: test_database 全部通过 ✅
 ```
@@ -50,9 +50,27 @@ Linux (Alibaba Cloud Linux 3, Qt 5.15.3):
 - **Status:** in_progress
 - **Started:** 2026-03-24
 
-- 已完成:
-  - [x] Linux 构建验证 ✅
+#### 已完成
 
-- 待完成:
-  - [ ] Windows 构建验证（等待 GitHub CI）
-  - [ ] 功能回归测试
+- [x] Linux 构建验证 ✅ (云主机 112.124.17.56)
+- [x] 补充缺失功能页面
+  - DeviceManagementPage 设备管理页面 ✅
+  - LoginLogPage 登录日志页面 ✅
+  - OperationLogPage 操作日志页面 ✅
+- [x] 修复链接错误 (DeviceAuthorizationDialog::onTabChanged)
+- [x] 更新功能进度文档 FEATURE_PROGRESS.md
+- [x] P0 功能 100% 完成 (20/20)
+
+#### 待完成
+
+- [ ] 功能回归测试
+- [ ] Windows 构建验证
+- [ ] 最终发布
+
+#### 本次提交记录
+
+| Commit | 描述 |
+|--------|------|
+| b386c76 | feat: 添加设备管理、登录日志、操作日志页面 |
+| becda68 | fix: 添加 DeviceAuthorizationDialog::onTabChanged 实现 |
+| 1e1e02d | docs: 更新功能开发进度表 |
