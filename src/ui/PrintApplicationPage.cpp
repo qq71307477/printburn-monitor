@@ -69,19 +69,16 @@ void PrintApplicationPage::setupApplicationForm()
 
     // 设备选择（打印机）
     m_deviceCombo = new QComboBox(this);
-    m_deviceCombo->setPlaceholderText("请选择打印机");
     loadDevices();
     m_formLayout->addRow("打印机:", m_deviceCombo);
 
     // 密级选择
     m_securityLevelCombo = new QComboBox(this);
-    m_securityLevelCombo->setPlaceholderText("请选择密级");
     loadSecurityLevels();
     m_formLayout->addRow("密级:", m_securityLevelCombo);
 
     // 审批员选择
     m_approverCombo = new QComboBox(this);
-    m_approverCombo->setPlaceholderText("请选择审批员");
     loadApprovers();
     m_formLayout->addRow("审批员:", m_approverCombo);
 

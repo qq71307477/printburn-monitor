@@ -2,6 +2,7 @@
 #include "../services/TaskService.h"
 #include "../models/task_model.h"
 #include "../common/repository/user_repository.h"
+#include "../common/repository/task_repository.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
